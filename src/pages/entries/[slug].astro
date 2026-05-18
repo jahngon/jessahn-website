@@ -1,0 +1,34 @@
+---
+import { getCollection, render } from 'astro:content';
+import Layout from '../../layouts/Layout.astro';
+
+export async function getStaticPaths() {
+	const entries = await getCollection('entries');
+	return entries.map((entry) => ({
+		params: { slug: entry.id },
+		props: { entry },
+	}));
+}
+
+const { entry } = Astro.props;
+const { Content } = await render(entry);
+
+const formatDate = (d: Date) =>
+	d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+---
+
+<Layout title={`${entry.data.title} — Jess Ahn`}>
+	<section class="section">
+		<a class="back-link" href="/">← Home</a>
+		<article>
+			<h1 class="article-title">{entry.data.title}</h1>
+			<div class="article-meta">
+				<p>{entry.data.category}</p>
+				<p>{formatDate(entry.data.date)}</p>
+			</div>
+			<div class="prose">
+				<Content />
+			</div>
+		</article>
+	</section>
+</Layout>

@@ -1,0 +1,72 @@
+---
+import Layout from '../layouts/Layout.astro';
+import { getCollection } from 'astro:content';
+
+const artifacts = (await getCollection('artifacts')).sort(
+	(a, b) => b.data.date.getTime() - a.data.date.getTime()
+);
+
+const entries = (await getCollection('entries')).sort(
+	(a, b) => b.data.date.getTime() - a.data.date.getTime()
+);
+---
+
+<Layout title="Jess Ahn">
+	<div class="opener">
+		<h1>Jess Ahn</h1>
+		<p class="tagline">GTM Operator &amp; Builder</p>
+
+		<p class="intro">
+			Hi, I'm Jess Ahn. I build and operate GTM systems and tools. Currently building for and advising startups and, most importantly, parenting a spicy little one. Sharing what I've built to help whoever is interested in navigating the crazy (good) of GTM and parenthood. I live in San Francisco.
+		</p>
+
+		<div class="links">
+			<a href="https://www.linkedin.com/" target="_blank" rel="noopener">Message me on LinkedIn</a>
+			<a href="#about">More about me</a>
+		</div>
+	</div>
+
+	<section class="section" id="artifacts">
+		<p class="section-label">Artifacts</p>
+		<ul class="list">
+			{artifacts.map((entry) => (
+				<li class="list-item">
+					<a href={`/artifacts/${entry.id}`}>
+						<div class="list-item-main">
+							<h2 class="list-item-title">{entry.data.title}</h2>
+							<p class="list-item-desc">{entry.data.description}</p>
+						</div>
+						<span class="list-item-tag">{entry.data.category}</span>
+					</a>
+				</li>
+			))}
+		</ul>
+	</section>
+
+	<section class="section" id="entries">
+		<p class="section-label">Entries</p>
+		<ul class="list">
+			{entries.map((entry) => (
+				<li class="list-item">
+					<a href={`/entries/${entry.id}`}>
+						<div class="list-item-main">
+							<h2 class="list-item-title">{entry.data.title}</h2>
+							<p class="list-item-desc">{entry.data.description}</p>
+						</div>
+						<span class="list-item-tag">{entry.data.category}</span>
+					</a>
+				</li>
+			))}
+		</ul>
+	</section>
+
+	<section class="section" id="about">
+		<p class="section-label">About</p>
+		<div class="prose">
+			<p>Hi, I'm Jess Ahn, a go-to-market operator and builder from San Francisco.</p>
+			<p>Previously, I was a consultant at Bain and Accenture. And before that, I was a multiple subjects teacher in Los Angeles.</p>
+			<p>The problems I saw in education were big and messy and I didn't know how to think about it all. So I went into consulting and came out with a way to find the shape of ambiguous problems. I've since been working inside businesses and the work I love most is taking something a company has built that's awesome and getting it into the hands of more of the people it's for.</p>
+			<p>I love wandering, understanding why people are the way they are, house tour vlogs and motion picture soundtracks (Oppenheimer, Interstellar).</p>
+		</div>
+	</section>
+</Layout>
