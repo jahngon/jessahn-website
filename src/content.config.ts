@@ -6,6 +6,7 @@ const schema = z.object({
 	description: z.string(),
 	category: z.enum(['GTM', 'Parenting']),
 	date: z.date(),
+	underline: z.enum(['frozen']).optional(),
 });
 
 const artifacts = defineCollection({

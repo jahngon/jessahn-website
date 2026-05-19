@@ -3,15 +3,14 @@ title: Child Credit Freeze Tool
 description: Protect your child from identity theft. Freeze their credit.
 category: Parenting
 date: 2026-05-18
+underline: frozen
 ---
 
 ## What is child identity fraud, and why should you care?
 
-The short version: someone uses your child's Social Security number to open credit cards, take out loans, or apply for benefits. The debt builds in a file your kid doesn't know exists. You usually don't find out until they're old enough to apply for something themselves.
+The short version: someone uses your child's Social Security number (SSN) to open credit cards, take out loans, or apply for benefits. The debt builds in a file your kid doesn't know exists. You usually don't find out until they're old enough to apply for something themselves.
 
-It happens more than people realize. [Javelin Strategy & Research](https://javelinstrategy.com/research/child-identity-fraud-web-deception-and-loss) estimates 1 in 50 U.S. children is a victim each year, with nearly $1 billion in annual losses to families. The part that surprises most: 73% of the time, the perpetrator is someone the child knows.
-
-Kids are appealing targets because their SSNs sit unused for 15+ years. To a bank, a child's SSN looks like a clean slate. To you, it's nothing until your teenager applies for a first job, a student loan, or an apartment, and learns there's already a problem.
+Kids are appealing targets because their SSNs sit unused for 15+ years. [Javelin Strategy & Research](https://javelinstrategy.com/research/child-identity-fraud-web-deception-and-loss) estimates 1 in 50 U.S. children is a victim each year, with nearly $1 billion in annual losses to families. Sadly, 73% of the time, the perpetrator is someone the child knows.
 
 If you want to go deeper: [Federal Reserve](https://fedpaymentsimprovement.org/wp-content/uploads/protect-kids-from-synthetic-identity-fraud.pdf), [FTC](https://consumer.ftc.gov/articles/how-protect-your-child-identity-theft).
 
@@ -21,7 +20,7 @@ If you want to go deeper: [Federal Reserve](https://fedpaymentsimprovement.org/w
 
 **Data breaches.** Schools, pediatricians, hospitals, and insurers all collect SSNs and get breached regularly. [PowerSchool](https://www1.powerschool.com/wp-content/uploads/2025/03/PowerSchool-CrowdStrike-Final-Report.pdf), used by thousands of U.S. school districts, disclosed a December 2024 breach affecting more than 60 million student records, with SSNs exposed for some.
 
-**Phishing aimed at parents.** Fake IRS emails. Fake school requests. A "tax preparer" who isn't. Less common, but real.
+**Phishing aimed at parents.** Fake IRS emails. Fake school requests. Less common, but real.
 
 ## What happens if it's used?
 
@@ -33,7 +32,7 @@ If you want to go deeper: [Federal Reserve](https://fedpaymentsimprovement.org/w
 
 **Cleanup takes a long time.** The FTC estimates roughly six months of work to recover from identity theft. Disputing fraudulent accounts means police reports, FTC filings, certified letters, and follow-up with each of the three credit bureaus. More serious cases take much longer.
 
-Real cases: [DOJ, 2019](https://www.justice.gov/usao-cdca/pr/san-fernando-valley-man-convicted-scheme-used-stolen-identities-obtain-over-3-million); [*The Less People Know About Us*](https://www.amazon.com/Less-People-Know-About-Us/dp/1549154621), a memoir by an identity-theft researcher whose mother stole her identity starting when she was 11.
+Real cases: [DOJ, 2019](https://www.justice.gov/usao-cdca/pr/san-fernando-valley-man-convicted-scheme-used-stolen-identities-obtain-over-3-million); [*The Less People Know About Us*](https://www.amazon.com/Less-People-Know-About-Us/dp/1549154621)
 
 ## So what can I actually do?
 
@@ -43,6 +42,6 @@ Real cases: [DOJ, 2019](https://www.justice.gov/usao-cdca/pr/san-fernando-valley
 
 - Every child's credit is open by default. You have to actively close it.
 - Each bureau is its own project. Different forms, different documents, different addresses.
-- Most of it is still mail-in. Photocopies, envelopes, stamps. Experian lets you upload; the others mostly don't.
+- Most of it is still mail-in. Photocopies, envelopes, stamps. Experian lets you upload; the others don't.
 
 It's on the bureaus to do better but until then, I built this tool to streamline what we can.

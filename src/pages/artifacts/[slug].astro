@@ -1,6 +1,7 @@
 ---
 import { getCollection, render } from 'astro:content';
 import Layout from '../../layouts/Layout.astro';
+import TitleUnderline from '../../components/TitleUnderline.astro';
 
 export async function getStaticPaths() {
 	const artifacts = await getCollection('artifacts');
@@ -29,7 +30,10 @@ const formatDate = (d: Date) =>
 	</nav>
 
 	<article>
-		<h1>{entry.data.title}</h1>
+		<div class="title-block">
+			<h1>{entry.data.title}</h1>
+			<TitleUnderline variant={entry.data.underline} />
+		</div>
 		<div class="article-meta">
 			<p>{entry.data.category}</p>
 			<p>{formatDate(entry.data.date)}</p>
