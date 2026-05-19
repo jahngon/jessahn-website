@@ -4,6 +4,7 @@ description: Protect your child from identity theft. Freeze their credit.
 category: Parenting
 date: 2026-05-18
 underline: frozen
+widget: credit-freeze-matrix
 ---
 
 ## What is child identity fraud, and why should you care?

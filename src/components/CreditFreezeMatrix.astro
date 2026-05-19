@@ -1,0 +1,249 @@
+---
+// Renders the bureau-by-category requirements matrix.
+// Fetches data at page load from the monitor repo's state.public.json on raw.githubusercontent.com.
+// Updates automatically — no website redeploy needed when requirements change.
+const STATE_URL =
+	'https://raw.githubusercontent.com/jahngon/child-credit-freeze-monitor/main/data/state.public.json';
+---
+
+<section class="freeze-matrix" data-state-url={STATE_URL} aria-label="Credit bureau document requirements">
+	<div class="freeze-matrix-loading">Loading the latest requirements…</div>
+</section>
+
+<script>
+	const FRIENDLY_LABELS: Record<string, string> = {
+		birth_child: "Child's birth certificate",
+		ssn_child: "Child's Social Security card",
+		id_child: "Child's government-issued ID",
+		id_parent: "Driver's license or other gov-issued ID",
+		ssn_parent: "Parent's Social Security card",
+		birth_parent: "Parent's birth certificate",
+		utility: 'Utility bill, bank statement, or insurance bill',
+		court: 'Court order or proof of guardianship',
+		poa: 'Power of attorney',
+		foster: 'Foster care certification',
+	};
+
+	const CATEGORIES: { key: 'parentId' | 'authority' | 'address' | 'childId'; label: string }[] = [
+		{ key: 'parentId', label: 'Parent identity' },
+		{ key: 'authority', label: 'Authority' },
+		{ key: 'address', label: 'Address' },
+		{ key: 'childId', label: 'Child identity' },
+	];
+
+	const BUREAUS: { key: 'equifax' | 'experian' | 'transunion'; name: string }[] = [
+		{ key: 'equifax', name: 'Equifax' },
+		{ key: 'experian', name: 'Experian' },
+		{ key: 'transunion', name: 'TransUnion' },
+	];
+
+	const STALE_HOURS = 48;
+
+	type RawCategory = { logic: string; options: string[]; notes?: string };
+	type RawDocument = { id: string; label: string; description?: string };
+	type RawBureau = {
+		bureau: string;
+		sourceUrl: string;
+		documents: RawDocument[];
+		categories: Record<string, RawCategory>;
+	};
+	type RawState = { lastChecked: string; lastChanged: string; bureaus: RawBureau[] };
+
+	function formatDate(iso: string): string {
+		const d = new Date(iso);
+		return d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+	}
+
+	function isStale(iso: string): boolean {
+		const hours = (Date.now() - new Date(iso).getTime()) / (1000 * 60 * 60);
+		return hours > STALE_HOURS;
+	}
+
+	function friendlyLabel(id: string, fallback?: string): string {
+		return FRIENDLY_LABELS[id] || fallback || id;
+	}
+
+	function escapeHtml(s: string): string {
+		return s
+			.replace(/&/g, '&amp;')
+			.replace(/</g, '&lt;')
+			.replace(/>/g, '&gt;')
+			.replace(/"/g, '&quot;')
+			.replace(/'/g, '&#39;');
+	}
+
+	function renderCell(catKey: string, bureau: RawBureau | undefined): string {
+		if (!bureau) return '<td class="cell-empty">—</td>';
+		const cat = bureau.categories[catKey];
+		if (!cat) return '<td class="cell-empty">—</td>';
+
+		if (cat.logic === 'na' || cat.options.length === 0) {
+			return '<td class="cell-na">Not required</td>';
+		}
+
+		const docMap = new Map(bureau.documents.map((d) => [d.id, d]));
+		const labels = cat.options.map((id) => friendlyLabel(id, docMap.get(id)?.label));
+		const logicLabel = cat.logic === 'or' ? 'Any one of' : cat.logic === 'and' ? 'All of' : cat.logic;
+		const items = labels.map((l) => `<li>${escapeHtml(l)}</li>`).join('');
+		return `<td><span class="cell-logic">${escapeHtml(logicLabel)}</span><ul class="cell-docs">${items}</ul></td>`;
+	}
+
+	async function loadMatrix(): Promise<void> {
+		const widget = document.querySelector<HTMLElement>('.freeze-matrix');
+		if (!widget) return;
+		const url = widget.dataset.stateUrl;
+		if (!url) return;
+
+		try {
+			const res = await fetch(url, { cache: 'no-store' });
+			if (!res.ok) throw new Error(`HTTP ${res.status}`);
+			const state = (await res.json()) as RawState;
+
+			const bureausByKey = new Map(state.bureaus.map((b) => [b.bureau, b]));
+			const stale = isStale(state.lastChecked);
+
+			let html = '';
+			html += `<div class="freeze-matrix-status ${stale ? 'stale' : 'fresh'}">`;
+			html += `<span class="status-dot" aria-hidden="true"></span>`;
+			html += `Last checked ${escapeHtml(formatDate(state.lastChecked))}`;
+			if (stale) {
+				html += ` <span class="status-warning">(may be out of date)</span>`;
+			}
+			html += `</div>`;
+
+			html += '<div class="freeze-matrix-scroll"><table class="freeze-matrix-table"><thead><tr><th></th>';
+			for (const b of BUREAUS) {
+				html += `<th scope="col">${escapeHtml(b.name)}</th>`;
+			}
+			html += '</tr></thead><tbody>';
+
+			for (const cat of CATEGORIES) {
+				html += `<tr><th scope="row">${escapeHtml(cat.label)}</th>`;
+				for (const b of BUREAUS) {
+					html += renderCell(cat.key, bureausByKey.get(b.key));
+				}
+				html += '</tr>';
+			}
+
+			html += '</tbody></table></div>';
+
+			widget.innerHTML = html;
+		} catch (err) {
+			const msg = err instanceof Error ? err.message : String(err);
+			widget.innerHTML = `<div class="freeze-matrix-error">Couldn't load latest requirements (${escapeHtml(msg)}).</div>`;
+		}
+	}
+
+	loadMatrix();
+</script>
+
+<style is:global>
+	.freeze-matrix {
+		margin: 56px 0 0;
+		font-family: var(--sans);
+	}
+
+	.freeze-matrix-loading {
+		font-size: 14px;
+		color: var(--muted);
+		font-style: italic;
+	}
+
+	.freeze-matrix-error {
+		font-size: 14px;
+		color: var(--accent);
+	}
+
+	.freeze-matrix-status {
+		font-size: 13px;
+		color: var(--muted);
+		margin-bottom: 16px;
+		display: flex;
+		align-items: center;
+		gap: 8px;
+	}
+
+	.freeze-matrix-status .status-dot {
+		display: inline-block;
+		width: 8px;
+		height: 8px;
+		border-radius: 50%;
+		background: #4caf50;
+	}
+
+	.freeze-matrix-status.stale .status-dot {
+		background: #d99000;
+	}
+
+	.freeze-matrix-status .status-warning {
+		color: #a07000;
+		font-weight: 500;
+	}
+
+	.freeze-matrix-scroll {
+		overflow-x: auto;
+	}
+
+	.freeze-matrix-table {
+		width: 100%;
+		min-width: 560px;
+		border-collapse: collapse;
+		font-size: 12px;
+		color: var(--body);
+	}
+
+	.freeze-matrix-table th,
+	.freeze-matrix-table td {
+		padding: 10px 10px;
+		border-top: 0.5px solid var(--hairline);
+		vertical-align: top;
+		text-align: left;
+	}
+
+	.freeze-matrix-table thead th {
+		font-weight: 500;
+		color: var(--ink);
+		font-size: 10px;
+		text-transform: uppercase;
+		letter-spacing: 0.1em;
+		border-top: none;
+	}
+
+	.freeze-matrix-table th[scope='row'] {
+		font-weight: 500;
+		color: var(--ink);
+		font-size: 12px;
+		width: 22%;
+		min-width: 100px;
+	}
+
+	.cell-logic {
+		display: block;
+		font-size: 10px;
+		text-transform: uppercase;
+		letter-spacing: 0.08em;
+		color: var(--muted);
+		margin-bottom: 4px;
+	}
+
+	.cell-docs {
+		list-style: none;
+		padding: 0;
+		margin: 0;
+	}
+
+	.cell-docs li {
+		margin-bottom: 3px;
+		line-height: 1.35;
+	}
+
+	.cell-docs li:last-child {
+		margin-bottom: 0;
+	}
+
+	.cell-na,
+	.cell-empty {
+		color: var(--muted);
+		font-style: italic;
+	}
+</style>

@@ -7,6 +7,7 @@ const schema = z.object({
 	category: z.enum(['GTM', 'Parenting']),
 	date: z.date(),
 	underline: z.enum(['frozen']).optional(),
+	widget: z.enum(['credit-freeze-matrix']).optional(),
 });
 
 const artifacts = defineCollection({
