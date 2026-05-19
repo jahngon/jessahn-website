@@ -37,9 +37,9 @@ Real cases: [DOJ, 2019](https://www.justice.gov/usao-cdca/pr/san-fernando-valley
 
 ## So what can I actually do?
 
- **<mark>Freeze your child's credit at all three bureaus.</mark>** Once frozen, no one can open new credit in your child's name without unfreezing it first. It's free, and parents have had the right to do it for kids under 16 since a 2018 federal law.
+ **<span class="highlight">Freeze your child's credit at all three bureaus.</span>** Once frozen, no one can open new credit in your child's name without unfreezing it first. It's free, and parents have had the right to do it for kids under 16 since a 2018 federal law.
 
-**<mark>The catch: the process is genuinely annoying.</mark>** Credit bureaus make money when credit is open. Free freezes are a regulatory burden for them, not a product. So:
+**<span class="highlight">The catch: the process is genuinely annoying.</span>** Credit bureaus make money when credit is open. Free freezes are a regulatory burden for them, not a product. So:
 
 - Every child's credit is open by default. You have to actively close it.
 - Each bureau is its own project. Different forms, different documents, different addresses.

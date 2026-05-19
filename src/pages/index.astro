@@ -12,29 +12,47 @@ const entries = (await getCollection('entries')).sort(
 ---
 
 <Layout title="Jess Ahn">
-	<div class="opener">
-		<h1>Jess Ahn</h1>
-		<p class="tagline">GTM Operator &amp; Builder</p>
-
-		<p class="intro">
-			Hi, I'm Jess Ahn. I build and operate GTM systems and tools. Currently building for and advising startups and, most importantly, parenting a spicy little one. Sharing what I've built to help whoever is interested in navigating the crazy (good) of GTM and parenthood. I live in San Francisco.
-		</p>
-
-		<div class="links">
-			<a href="https://www.linkedin.com/in/jessicaahn/" target="_blank" rel="noopener">Message me on LinkedIn</a>
-			<a href="#about">More about me</a>
+	<nav class="nav">
+		<a class="nav-wordmark" href="/">Jess Ahn</a>
+		<div class="nav-items">
+			<a href="/#artifacts">Artifacts</a>
+			<a href="/#writing">Writing</a>
+			<a href="/#about">About</a>
+			<a class="say-hi" href="https://www.linkedin.com/in/jessicaahn/" target="_blank" rel="noopener">Say hi</a>
 		</div>
+	</nav>
+
+	<h1>
+		Hi, I'm Jess. I build and operate
+		<span class="squiggle-wrap">
+			<em>GTM systems</em>
+			<svg class="squiggle" viewBox="0 0 260 18" preserveAspectRatio="none" aria-hidden="true">
+				<path d="M 4 10 Q 16 3, 28 10 T 52 10 T 76 10 T 100 10 T 124 10 T 148 10 T 172 10 T 196 10 T 220 10 T 244 10 T 256 10"
+					fill="none" stroke="#1B4FCC" stroke-width="3"
+					stroke-linecap="round" stroke-linejoin="round"/>
+			</svg>
+		</span>
+		and the tools behind them.
+	</h1>
+
+	<p class="intro">
+		Currently building for and advising startups — and, most importantly, parenting a spicy little one. Sharing what I've made to help anyone navigating the <span class="highlight">crazy (good)</span> of GTM and parenthood. Based in San Francisco.
+	</p>
+
+	<div class="links">
+		<a href="https://www.linkedin.com/in/jessicaahn/" target="_blank" rel="noopener">Message me on LinkedIn</a>
+		<a href="#about">More about me</a>
 	</div>
 
 	{artifacts.length > 0 && (
 		<section class="section" id="artifacts">
-			<p class="section-label">Artifacts</p>
+			<h2 class="section-label">Artifacts</h2>
 			<ul class="list">
 				{artifacts.map((entry) => (
 					<li class="list-item">
 						<a href={`/artifacts/${entry.id}`}>
 							<div class="list-item-main">
-								<h2 class="list-item-title">{entry.data.title}</h2>
+								<h3 class="list-item-title">{entry.data.title}</h3>
 								<p class="list-item-desc">{entry.data.description}</p>
 							</div>
 							<span class="list-item-tag">{entry.data.category}</span>
@@ -46,14 +64,14 @@ const entries = (await getCollection('entries')).sort(
 	)}
 
 	{entries.length > 0 && (
-		<section class="section" id="entries">
-			<p class="section-label">Entries</p>
+		<section class="section" id="writing">
+			<h2 class="section-label">Writing</h2>
 			<ul class="list">
 				{entries.map((entry) => (
 					<li class="list-item">
 						<a href={`/entries/${entry.id}`}>
 							<div class="list-item-main">
-								<h2 class="list-item-title">{entry.data.title}</h2>
+								<h3 class="list-item-title">{entry.data.title}</h3>
 								<p class="list-item-desc">{entry.data.description}</p>
 							</div>
 							<span class="list-item-tag">{entry.data.category}</span>
@@ -65,7 +83,7 @@ const entries = (await getCollection('entries')).sort(
 	)}
 
 	<section class="section" id="about">
-		<p class="section-label">About</p>
+		<h2 class="section-label">About</h2>
 		<div class="prose">
 			<p>Hi, I'm Jess Ahn, a go-to-market operator and builder from San Francisco.</p>
 			<p>Previously, I was a consultant at Bain and Accenture. And before that, I was a multiple subjects teacher in Los Angeles.</p>

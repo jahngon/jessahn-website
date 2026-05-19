@@ -18,7 +18,7 @@ const { title } = Astro.props;
 		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 		<link
 			rel="stylesheet"
-			href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&family=IBM+Plex+Mono:wght@400&display=swap"
+			href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500&family=Source+Serif+Pro:ital,wght@0,400;0,500;1,400&display=swap"
 		/>
 	</head>
 	<body>
@@ -30,13 +30,15 @@ const { title } = Astro.props;
 
 <style is:global>
 	:root {
-		--bg: #FBF8F3;
-		--ink: #1A1A1A;
-		--muted: #6B6B6B;
-		--accent: #4A5B7C;
-		--accent-tint: rgba(74, 91, 124, 0.2);
-		--sans: 'Inter', system-ui, sans-serif;
-		--mono: 'IBM Plex Mono', monospace;
+		--bg: #FAF8F3;
+		--ink: #1a1a1a;
+		--body: #2a2a2a;
+		--muted: #6a6a6a;
+		--accent: #1B4FCC;
+		--accent-tint: rgba(27, 79, 204, 0.2);
+		--hairline: rgba(26, 26, 26, 0.15);
+		--serif: 'Source Serif Pro', Georgia, serif;
+		--sans: 'Inter', system-ui, -apple-system, sans-serif;
 	}
 
 	::selection {
@@ -54,112 +56,143 @@ const { title } = Astro.props;
 
 	body {
 		background: var(--bg);
-		color: var(--ink);
+		color: var(--body);
 		font-family: var(--sans);
-		font-size: 15px;
-		line-height: 1.6;
+		font-size: 16px;
+		line-height: 1.7;
 		-webkit-font-smoothing: antialiased;
 	}
 
-	.container {
-		max-width: 860px;
-		margin: 0 auto;
-		padding: 120px 32px 80px;
+	a {
+		color: var(--ink);
+		text-decoration: underline;
+		text-decoration-color: var(--accent);
+		text-underline-offset: 6px;
+		text-decoration-thickness: 2px;
 	}
 
-	/* Homepage opener */
-	.opener {
-		margin-left: calc(100px + 32px);
+	.container {
+		max-width: 1000px;
+		margin: 0 auto;
+		padding: 48px 64px 80px;
 	}
 
 	@media (max-width: 720px) {
-		.opener {
-			margin-left: 0;
+		.container {
+			padding: 32px 24px 56px;
 		}
 	}
 
+	/* Headings */
 	h1 {
-		font-family: var(--sans);
-		font-weight: 600;
-		font-size: 32px;
-		letter-spacing: -0.02em;
-		margin: 0 0 8px;
-	}
-
-	.tagline {
-		font-family: var(--mono);
-		font-size: 14px;
-		color: var(--muted);
+		font-family: var(--serif);
+		font-weight: 400;
+		font-size: 46px;
+		line-height: 1.15;
+		letter-spacing: -0.015em;
+		color: var(--ink);
 		margin: 0 0 40px;
-		letter-spacing: 0.02em;
+		text-wrap: balance;
 	}
 
+	h2 {
+		font-family: var(--serif);
+		font-weight: 400;
+		font-size: 32px;
+		line-height: 1.1;
+		letter-spacing: -0.01em;
+		color: var(--ink);
+		margin: 0 0 16px;
+	}
+
+	h3 {
+		font-family: var(--serif);
+		font-weight: 400;
+		font-size: 17px;
+		line-height: 1.35;
+		letter-spacing: -0.005em;
+		color: var(--ink);
+		margin: 0;
+	}
+
+	/* Hero intro paragraph */
 	.intro {
+		font-size: 17px;
+		line-height: 1.6;
+		color: var(--body);
+		max-width: 800px;
 		margin: 0 0 32px;
 	}
 
+	/* Hero links row */
 	.links {
 		display: flex;
 		flex-direction: row;
-		gap: 24px;
-		margin-top: 32px;
+		gap: 28px;
+		margin: 0 0 80px;
 	}
 
-	.links a {
-		font-family: var(--mono);
-		font-size: 14px;
-		color: var(--ink);
-		text-decoration: underline;
-		text-underline-offset: 4px;
-	}
-
-	.links a:hover {
-		color: var(--accent);
-	}
-
-	/* Section grid (home + sub-pages) */
+	/* Sections with marginal eyebrow label */
 	.section {
 		display: grid;
 		grid-template-columns: 100px 1fr;
 		column-gap: 32px;
-		margin-top: 96px;
+		align-items: baseline;
+		padding: 72px 0;
+		position: relative;
 	}
 
-	.section:first-child {
-		margin-top: 0;
+	.section::before {
+		content: '';
+		position: absolute;
+		top: 0;
+		left: 0;
+		width: min(800px, 100%);
+		height: 0.5px;
+		background: var(--hairline);
 	}
 
 	@media (max-width: 720px) {
 		.section {
 			grid-template-columns: 1fr;
 			row-gap: 16px;
+			padding: 56px 0;
 		}
 	}
 
 	.section-label {
-		font-family: var(--mono);
+		font-family: var(--sans);
 		font-size: 12px;
+		font-weight: 500;
 		color: var(--muted);
 		text-transform: uppercase;
-		letter-spacing: 0.12em;
+		letter-spacing: 0.15em;
 		margin: 0;
-		padding-top: 18px;
 	}
 
-	/* Homepage list */
+	/* Lists with hairline dividers */
 	.list {
 		list-style: none;
 		margin: 0;
 		padding: 0;
+		max-width: 668px;
+	}
+
+	.list-item {
+		border-top: 0.5px solid var(--hairline);
+	}
+
+	.list-item:first-child {
+		border-top: none;
 	}
 
 	.list-item a {
 		display: flex;
 		align-items: baseline;
 		gap: 24px;
-		padding: 16px 0;
-		color: var(--ink);
+		padding: 20px 0;
 		text-decoration: none;
+		color: var(--ink);
 	}
 
 	.list-item-main {
@@ -168,46 +201,45 @@ const { title } = Astro.props;
 	}
 
 	.list-item-title {
-		font-family: var(--sans);
-		font-weight: 600;
-		font-size: 14px;
+		font-family: var(--serif);
+		font-weight: 400;
+		font-size: 17px;
+		line-height: 1.35;
+		letter-spacing: -0.005em;
+		color: var(--ink);
 		margin: 0 0 4px;
-		letter-spacing: -0.01em;
 	}
 
 	.list-item-desc {
 		font-family: var(--sans);
-		font-size: 14px;
+		font-size: 13px;
+		line-height: 1.55;
 		color: var(--muted);
 		margin: 0;
-		line-height: 1.5;
 		white-space: nowrap;
 		overflow: hidden;
 		text-overflow: ellipsis;
 	}
 
 	.list-item-tag {
-		font-family: var(--mono);
-		font-size: 11px;
+		font-family: var(--sans);
+		font-size: 13px;
 		color: var(--muted);
-		text-transform: uppercase;
-		letter-spacing: 0.1em;
 		flex-shrink: 0;
 	}
 
-	.list-item a:hover .list-item-title {
-		color: var(--accent);
-		text-decoration: underline;
-		text-underline-offset: 3px;
+	/* Prose (markdown article bodies) */
+	.prose {
+		max-width: 600px;
 	}
 
-	/* Prose */
-	.prose {
-		font-size: 14px;
+	/* About section prose extends to align with hero intro's right edge */
+	#about .prose {
+		max-width: 668px;
 	}
 
 	.prose p {
-		margin: 0 0 20px;
+		margin: 0 0 24px;
 	}
 
 	.prose p:last-child {
@@ -215,28 +247,15 @@ const { title } = Astro.props;
 	}
 
 	.prose h2 {
-		font-family: var(--sans);
-		font-weight: 600;
-		font-size: 16px;
-		letter-spacing: -0.01em;
-		margin: 40px 0 12px;
+		margin: 56px 0 16px;
 	}
 
 	.prose h3 {
-		font-family: var(--sans);
-		font-weight: 600;
-		font-size: 15px;
-		margin: 28px 0 8px;
-	}
-
-	.prose a {
-		color: var(--accent);
-		text-decoration: underline;
-		text-underline-offset: 3px;
+		margin: 40px 0 12px;
 	}
 
 	.prose strong {
-		font-weight: 600;
+		font-weight: 500;
 		color: var(--ink);
 	}
 
@@ -244,13 +263,8 @@ const { title } = Astro.props;
 		font-style: italic;
 	}
 
-	.prose mark {
-		background: transparent;
-		color: var(--accent);
-	}
-
 	.prose ul, .prose ol {
-		margin: 0 0 20px;
+		margin: 0 0 24px;
 		padding-left: 1.25em;
 	}
 
@@ -262,31 +276,12 @@ const { title } = Astro.props;
 		margin-bottom: 0;
 	}
 
-	.section > .prose {
-		padding-top: 16px;
-	}
-
-	/* Sub-page article */
-	.back-link {
-		font-family: var(--mono);
-		font-size: 12px;
-		color: var(--muted);
-		text-transform: uppercase;
-		letter-spacing: 0.12em;
-		padding-top: 0;
-		text-decoration: none;
-	}
-
-	.back-link:hover {
-		color: var(--accent);
-	}
-
+	/* Sub-page article meta */
 	.article-meta {
-		font-family: var(--mono);
-		font-size: 12px;
+		font-family: var(--sans);
+		font-size: 13px;
+		line-height: 1.55;
 		color: var(--muted);
-		text-transform: uppercase;
-		letter-spacing: 0.12em;
 		margin: 0 0 32px;
 		display: flex;
 		flex-direction: column;
@@ -297,18 +292,68 @@ const { title } = Astro.props;
 		margin: 0;
 	}
 
-	.article-title {
-		font-family: var(--sans);
-		font-weight: 600;
-		font-size: 28px;
-		letter-spacing: -0.02em;
-		margin: 0 0 8px;
+	/* Squiggle (signature accent) */
+	.squiggle-wrap {
+		position: relative;
+		display: inline-block;
 	}
 
-	.article-lead {
+	.squiggle-wrap em {
+		font-style: italic;
+		position: relative;
+		z-index: 2;
+	}
+
+	.squiggle {
+		position: absolute;
+		left: -6px;
+		bottom: -14px;
+		width: calc(100% + 12px);
+		height: 18px;
+		z-index: 1;
+	}
+
+	/* Highlight (replaces old <mark>) */
+	.highlight {
+		font-weight: 500;
+		color: var(--accent);
+	}
+
+	/* Navigation */
+	.nav {
+		display: flex;
+		align-items: baseline;
+		justify-content: space-between;
 		font-family: var(--sans);
-		font-size: 15px;
-		color: var(--muted);
-		margin: 0 0 16px;
+		font-size: 14px;
+		line-height: 1.5;
+		margin-bottom: 120px;
+	}
+
+	@media (max-width: 720px) {
+		.nav {
+			margin-bottom: 80px;
+		}
+	}
+
+	.nav-wordmark {
+		font-weight: 500;
+		letter-spacing: 0.02em;
+		color: var(--ink);
+		text-decoration: none;
+	}
+
+	.nav-items {
+		display: flex;
+		gap: 28px;
+	}
+
+	.nav-items a {
+		color: var(--ink);
+		text-decoration: none;
+	}
+
+	.nav-items a.say-hi {
+		color: var(--accent);
 	}
 </style>

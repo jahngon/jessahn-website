@@ -18,17 +18,24 @@ const formatDate = (d: Date) =>
 ---
 
 <Layout title={`${entry.data.title} — Jess Ahn`}>
-	<section class="section">
-		<a class="back-link" href="/">← Home</a>
-		<article>
-			<h1 class="article-title">{entry.data.title}</h1>
-			<div class="article-meta">
-				<p>{entry.data.category}</p>
-				<p>{formatDate(entry.data.date)}</p>
-			</div>
-			<div class="prose">
-				<Content />
-			</div>
-		</article>
-	</section>
+	<nav class="nav">
+		<a class="nav-wordmark" href="/">Jess Ahn</a>
+		<div class="nav-items">
+			<a href="/#artifacts">Artifacts</a>
+			<a href="/#writing">Writing</a>
+			<a href="/#about">About</a>
+			<a class="say-hi" href="https://www.linkedin.com/in/jessicaahn/" target="_blank" rel="noopener">Say hi</a>
+		</div>
+	</nav>
+
+	<article>
+		<h1>{entry.data.title}</h1>
+		<div class="article-meta">
+			<p>{entry.data.category}</p>
+			<p>{formatDate(entry.data.date)}</p>
+		</div>
+		<div class="prose">
+			<Content />
+		</div>
+	</article>
 </Layout>
