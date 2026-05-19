@@ -21,44 +21,48 @@ const entries = (await getCollection('entries')).sort(
 		</p>
 
 		<div class="links">
-			<a href="https://www.linkedin.com/" target="_blank" rel="noopener">Message me on LinkedIn</a>
+			<a href="https://www.linkedin.com/in/jessicaahn/" target="_blank" rel="noopener">Message me on LinkedIn</a>
 			<a href="#about">More about me</a>
 		</div>
 	</div>
 
-	<section class="section" id="artifacts">
-		<p class="section-label">Artifacts</p>
-		<ul class="list">
-			{artifacts.map((entry) => (
-				<li class="list-item">
-					<a href={`/artifacts/${entry.id}`}>
-						<div class="list-item-main">
-							<h2 class="list-item-title">{entry.data.title}</h2>
-							<p class="list-item-desc">{entry.data.description}</p>
-						</div>
-						<span class="list-item-tag">{entry.data.category}</span>
-					</a>
-				</li>
-			))}
-		</ul>
-	</section>
+	{artifacts.length > 0 && (
+		<section class="section" id="artifacts">
+			<p class="section-label">Artifacts</p>
+			<ul class="list">
+				{artifacts.map((entry) => (
+					<li class="list-item">
+						<a href={`/artifacts/${entry.id}`}>
+							<div class="list-item-main">
+								<h2 class="list-item-title">{entry.data.title}</h2>
+								<p class="list-item-desc">{entry.data.description}</p>
+							</div>
+							<span class="list-item-tag">{entry.data.category}</span>
+						</a>
+					</li>
+				))}
+			</ul>
+		</section>
+	)}
 
-	<section class="section" id="entries">
-		<p class="section-label">Entries</p>
-		<ul class="list">
-			{entries.map((entry) => (
-				<li class="list-item">
-					<a href={`/entries/${entry.id}`}>
-						<div class="list-item-main">
-							<h2 class="list-item-title">{entry.data.title}</h2>
-							<p class="list-item-desc">{entry.data.description}</p>
-						</div>
-						<span class="list-item-tag">{entry.data.category}</span>
-					</a>
-				</li>
-			))}
-		</ul>
-	</section>
+	{entries.length > 0 && (
+		<section class="section" id="entries">
+			<p class="section-label">Entries</p>
+			<ul class="list">
+				{entries.map((entry) => (
+					<li class="list-item">
+						<a href={`/entries/${entry.id}`}>
+							<div class="list-item-main">
+								<h2 class="list-item-title">{entry.data.title}</h2>
+								<p class="list-item-desc">{entry.data.description}</p>
+							</div>
+							<span class="list-item-tag">{entry.data.category}</span>
+						</a>
+					</li>
+				))}
+			</ul>
+		</section>
+	)}
 
 	<section class="section" id="about">
 		<p class="section-label">About</p>
