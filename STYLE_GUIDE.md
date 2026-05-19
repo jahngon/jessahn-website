@@ -153,7 +153,7 @@ Page structure:
 
 - Single-column reading flow (max 540–600px paragraph width). On the homepage, a 100px left gutter holds optional marginal eyebrow labels for major sections (see "Marginal eyebrow labels").
 - Horizontal padding: 64px on desktop, 24px on mobile.
-- Max content width for body prose paragraphs (article bodies): 540–600px. The site is meant to be read, not scanned at full browser width. The hero intro paragraph and the About section prose are exempt — they extend further right to visually align with the H1 above them.
+- Max content width varies by context: homepage About section prose is 668px (offset by 132px to sit in the section's content column). Sub-page article bodies are left-anchored to the container edge at 800px max width, matching the homepage hero intro's right edge. The hero intro paragraph is 800px wide. All three end at approximately the same X position, creating a consistent right edge down the page and across pages.
 - Section vertical padding: 56–80px top and bottom.
 - Space between nav and hero content: 120px. Do not tighten.
 
