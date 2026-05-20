@@ -64,13 +64,54 @@ const STALE_HOURS = 36;
 
 	type RawCategory = { logic: string; options: string[]; notes?: string };
 	type RawDocument = { id: string; label: string; description?: string };
+	type RawMailingAddress = { lines: string[]; notes?: string };
+	type RawForm = {
+		url: string;
+		type: 'pdf_form' | 'online_form' | 'letter';
+		resolves: boolean;
+		contentHash?: string;
+		notes?: string;
+	};
 	type RawBureau = {
 		bureau: string;
 		sourceUrl: string;
 		documents: RawDocument[];
 		categories: Record<string, RawCategory>;
+		mailingAddress: RawMailingAddress;
+		form: RawForm;
 	};
 	type RawState = { lastChecked: string; lastChanged: string; bureaus: RawBureau[] };
+
+	// Inline SVG icons — minimal Tabler-style line icons. No external dependency.
+	const ICON_COPY =
+		'<svg class="cff-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></svg>';
+	const ICON_CHECK =
+		'<svg class="cff-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5L20 7"/></svg>';
+	const ICON_MAILBOX =
+		'<svg class="cff-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></svg>';
+	const ICON_FILE_TEXT =
+		'<svg class="cff-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h9l5 5v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M14 3v6h6"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="14" y2="17"/></svg>';
+	const ICON_WORLD =
+		'<svg class="cff-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><line x1="3" y1="12" x2="21" y2="12"/><path d="M12 3a13 13 0 0 1 0 18"/><path d="M12 3a13 13 0 0 0 0 18"/></svg>';
+	const ICON_WRITING =
+		'<svg class="cff-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4l10-10-4-4L4 16v4z"/><line x1="13.5" y1="6.5" x2="17.5" y2="10.5"/></svg>';
+	const ICON_DOWNLOAD =
+		'<svg class="cff-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v12"/><path d="M7 11l5 5 5-5"/><path d="M5 20h14"/></svg>';
+	const ICON_EXTERNAL =
+		'<svg class="cff-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h6v6"/><line x1="10" y1="14" x2="20" y2="4"/><path d="M19 13v6a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h6"/></svg>';
+	const ICON_CHEVRON_DOWN =
+		'<svg class="cff-icon cff-chevron" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>';
+	const ICON_ALERT_TRIANGLE =
+		'<svg class="cff-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l10 18H2z"/><line x1="12" y1="10" x2="12" y2="14"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>';
+
+	// Google Docs "make a copy" URL. The /copy suffix is what triggers Google's
+	// "Copy document?" dialog so visitors get their own private copy in their Drive,
+	// not view access to the source template. The doc itself must be shared as
+	// "anyone with the link → viewer" for this to work for visitors.
+	// To regenerate: re-upload public/widget/transunion-letter-bracketed.docx,
+	// re-open as Google Doc, re-share, paste the share URL here and swap /edit?... → /copy.
+	const GOOGLE_DOCS_TEMPLATE_URL =
+		'https://docs.google.com/document/d/1LyqRaQiw6OuxN9YNxEcD9PZY8dZ01qWYK5t8_z2T2yE/copy';
 
 	/** Selected document IDs. Lives only in memory; resets on page reload. */
 	const selected = new Set<string>();
@@ -102,6 +143,19 @@ const STALE_HOURS = 36;
 		});
 	}
 
+	/** "May 19, 2026 at 10:09 PM" — date + time in visitor's local timezone.
+	 * Used in freshness indicators so changes that land mid-day are visible. */
+	function formatDateTime(iso: string): string {
+		const d = new Date(iso);
+		const date = d.toLocaleDateString('en-US', {
+			month: 'long',
+			day: 'numeric',
+			year: 'numeric',
+		});
+		const time = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+		return `${date} at ${time}`;
+	}
+
 	function isStale(iso: string, staleHours: number): boolean {
 		const hours = (Date.now() - new Date(iso).getTime()) / (1000 * 60 * 60);
 		return hours > staleHours;
@@ -127,6 +181,9 @@ const STALE_HOURS = 36;
 				if (!c || !Array.isArray(c.options) || typeof c.logic !== 'string') {
 					return `${b.bureau}.categories.${cat}: shape invalid`;
 				}
+			}
+			if (!b.mailingAddress || !Array.isArray(b.mailingAddress.lines)) {
+				return `${b.bureau}: mailingAddress missing or malformed`;
 			}
 		}
 		return null;
@@ -235,7 +292,7 @@ const STALE_HOURS = 36;
 		html += '<h2 class="cff-step-title">Step 1: Know what each bureau requires</h2>';
 		html += `<span class="cff-status ${stale ? 'cff-status-stale' : 'cff-status-fresh'}">`;
 		html += '<span class="cff-status-dot" aria-hidden="true"></span>';
-		html += `Last checked ${escapeHtml(formatDate(state.lastChecked))}`;
+		html += `Last checked ${escapeHtml(formatDateTime(state.lastChecked))}`;
 		if (stale) {
 			html += ' <span class="cff-status-warning">(may be out of date)</span>';
 		}
@@ -357,6 +414,148 @@ const STALE_HOURS = 36;
 		return html;
 	}
 
+	function renderStep4(): string {
+		if (!state) return '';
+
+		const bureausByKey = new Map(state.bureaus.map((b) => [b.bureau, b]));
+		const equifax = bureausByKey.get('equifax');
+		const experian = bureausByKey.get('experian');
+
+		let html = '';
+		html += '<div class="cff-step">';
+		html += '<header class="cff-step-header">';
+		html += '<h2 class="cff-step-title">Step 4: Complete form for each bureau</h2>';
+		html += '</header>';
+		html +=
+			"<p class=\"cff-step-hint\">You'll send a separate request to all three. Each one works a little differently.</p>";
+
+		html += '<div class="cff-submit-grid">';
+
+		// Equifax column — PDF form
+		if (equifax) {
+			html += '<div class="cff-submit-card">';
+			html += '<div class="cff-submit-bureau">Equifax</div>';
+			html += `<div class="cff-submit-tag">${ICON_FILE_TEXT}<span>PDF form</span></div>`;
+			html +=
+				"<p class=\"cff-submit-desc\">Download Equifax's printable form, fill it in, and mail it with your document copies.</p>";
+			html += `<a class="cff-submit-action" href="${escapeHtml(equifax.form.url)}" target="_blank" rel="noopener">${ICON_DOWNLOAD}<span>Get form</span></a>`;
+			html += '</div>';
+		}
+
+		// Experian column — online form
+		if (experian) {
+			html += '<div class="cff-submit-card">';
+			html += '<div class="cff-submit-bureau">Experian</div>';
+			html += `<div class="cff-submit-tag">${ICON_WORLD}<span>Online form</span></div>`;
+			html +=
+				"<p class=\"cff-submit-desc\">Fill in Experian's online form, then print the completed page to mail with your copies.</p>";
+			html += `<a class="cff-submit-action" href="${escapeHtml(experian.form.url)}" target="_blank" rel="noopener">${ICON_EXTERNAL}<span>Go to form</span></a>`;
+			html +=
+				'<p class="cff-submit-note"><strong>Note:</strong> Experian also offers a direct online upload option.</p>';
+			html += '</div>';
+		}
+
+		// TransUnion column — letter template with three pill-style action buttons
+		const gdocsReady = GOOGLE_DOCS_TEMPLATE_URL !== 'PLACEHOLDER_NOT_SET_YET';
+		html += '<div class="cff-submit-card">';
+		html += '<div class="cff-submit-bureau">TransUnion</div>';
+		html += `<div class="cff-submit-tag">${ICON_WRITING}<span>Letter</span></div>`;
+		html +=
+			'<p class="cff-submit-desc">Here is a fill-in template that you can use, then print and mail it with your copies.</p>';
+
+		html += '<div class="cff-tu-actions">';
+
+		// Word and Markdown share the first row — both are direct downloads
+		html += '<div class="cff-tu-downloads-row">';
+		html +=
+			'<a class="cff-submit-action" href="/widget/transunion-letter-bracketed.docx" download>' +
+			ICON_DOWNLOAD +
+			'<span>Word</span>' +
+			'</a>';
+		html +=
+			'<a class="cff-submit-action" href="/widget/transunion-letter-bracketed.md" download>' +
+			ICON_DOWNLOAD +
+			'<span>Markdown</span>' +
+			'</a>';
+		html += '</div>';
+
+		// Google Docs — toggle button; warning + link inside expanded panel
+		html +=
+			'<button type="button" class="cff-submit-action cff-tu-gdocs-toggle" aria-expanded="false" aria-controls="cff-gdocs-panel">' +
+			'<span>Google Docs</span>' +
+			`<span class="cff-tu-chevron-wrap">${ICON_CHEVRON_DOWN}</span>` +
+			'</button>';
+
+		html += '<div id="cff-gdocs-panel" class="cff-tu-gdocs-panel" hidden>';
+		html += `<div class="cff-tu-warning"><span class="cff-tu-warning-icon">${ICON_ALERT_TRIANGLE}</span><span>The information you fill in will be saved in your Google Drive until you delete it.</span></div>`;
+		if (gdocsReady) {
+			html += `<a class="cff-submit-action" href="${escapeHtml(GOOGLE_DOCS_TEMPLATE_URL)}" target="_blank" rel="noopener">${ICON_EXTERNAL}<span>Open in Google Docs</span></a>`;
+		} else {
+			html +=
+				'<p class="cff-tu-gdocs-placeholder">Google Docs link not configured yet — set <code>GOOGLE_DOCS_TEMPLATE_URL</code> in this component to enable.</p>';
+		}
+		html += '</div>';
+
+		html += '</div>'; // /cff-tu-actions
+		html += '</div>'; // /TransUnion card
+
+		html += '</div>'; // /cff-submit-grid
+		html += '</div>'; // /cff-step
+		return html;
+	}
+
+	function renderStep5(): string {
+		if (!state) return '';
+
+		const stale = isStale(state.lastChecked, getStaleHours());
+		const bureausByKey = new Map(state.bureaus.map((b) => [b.bureau, b]));
+
+		let html = '';
+		html += '<div class="cff-step">';
+		html += '<header class="cff-step-header">';
+		html += '<h2 class="cff-step-title">Step 5: Mail each request</h2>';
+		// Freshness badge inline in the header, mirroring Step 1's visual treatment.
+		html += `<span class="cff-status ${stale ? 'cff-status-stale' : 'cff-status-fresh'}">`;
+		html += '<span class="cff-status-dot" aria-hidden="true"></span>';
+		html += `Last checked ${escapeHtml(formatDateTime(state.lastChecked))}`;
+		if (stale) {
+			html += ' <span class="cff-status-warning">(may be out of date)</span>';
+		}
+		html += '</span>';
+		html += '</header>';
+		html +=
+			"<p class=\"cff-step-hint\">Send each bureau's form or letter, along with your document copies, to the matching address below.</p>";
+
+		// Three-column address card grid
+		html += '<div class="cff-address-grid">';
+		for (const b of BUREAUS) {
+			const bureau = bureausByKey.get(b.key);
+			if (!bureau) continue;
+			const lines = bureau.mailingAddress.lines;
+			const addressText = lines.join('\n');
+			html += '<div class="cff-address-card">';
+			html += `<div class="cff-address-bureau">${escapeHtml(b.name)}</div>`;
+			html += '<div class="cff-address-lines">';
+			for (const ln of lines) {
+				html += `<div>${escapeHtml(ln)}</div>`;
+			}
+			html += '</div>';
+			html += `<button type="button" class="cff-copy-btn" data-address-text="${escapeHtml(addressText)}">${ICON_COPY}<span class="cff-copy-btn-label">Copy address</span></button>`;
+			html += '</div>';
+		}
+		html += '</div>';
+
+		// Mail guidance note
+		html += '<div class="cff-mail-note">';
+		html += `<span class="cff-mail-note-icon">${ICON_MAILBOX}</span>`;
+		html +=
+			"<span>Because you're mailing sensitive documents, consider sending each request by <strong>certified mail</strong>. Adding a <strong>return receipt</strong> (a few dollars more) gives you back a signed confirmation that the bureau received it — useful if a freeze confirmation never arrives and you need proof you sent it.</span>";
+		html += '</div>';
+
+		html += '</div>';
+		return html;
+	}
+
 	function renderAgeGate(): string {
 		const under16Selected = ageBand === 'under_16';
 		const teenSelected = ageBand === '16_or_17';
@@ -394,6 +593,8 @@ const STALE_HOURS = 36;
 		html += renderStep1();
 		html += renderPicker(); // banner is rendered inside Step 2
 		html += '<div id="cff-step3-slot">' + renderSummary() + '</div>';
+		html += renderStep4();
+		html += renderStep5();
 		return html;
 	}
 
@@ -445,9 +646,59 @@ const STALE_HOURS = 36;
 		if (body) body.innerHTML = renderBody();
 	}
 
+	function handleCopyAddress(button: HTMLButtonElement): void {
+		const text = button.dataset.addressText;
+		if (!text) return;
+		const original = button.innerHTML;
+		const restore = () => {
+			button.innerHTML = original;
+			button.classList.remove('cff-copy-btn-success');
+			button.disabled = false;
+		};
+		const success = () => {
+			button.innerHTML = ICON_CHECK + '<span class="cff-copy-btn-label">Copied</span>';
+			button.classList.add('cff-copy-btn-success');
+			button.disabled = true;
+			window.setTimeout(restore, 1500);
+		};
+		// Browsers without clipboard API or where it's blocked still fall back gracefully
+		// by showing the Copied state — the address is still visible to the user.
+		if (navigator.clipboard && navigator.clipboard.writeText) {
+			navigator.clipboard.writeText(text).then(success).catch(() => success());
+		} else {
+			success();
+		}
+	}
+
+	function handleGdocsToggle(button: HTMLButtonElement): void {
+		const expanded = button.getAttribute('aria-expanded') === 'true';
+		button.setAttribute('aria-expanded', expanded ? 'false' : 'true');
+		const panelId = button.getAttribute('aria-controls');
+		if (panelId) {
+			const panel = document.getElementById(panelId);
+			if (panel) {
+				if (expanded) {
+					panel.setAttribute('hidden', '');
+				} else {
+					panel.removeAttribute('hidden');
+				}
+			}
+		}
+	}
+
 	function wireEvents(widget: HTMLElement): void {
 		widget.addEventListener('click', (e) => {
 			const target = e.target as HTMLElement;
+			const gdocsToggle = target.closest<HTMLButtonElement>('.cff-tu-gdocs-toggle');
+			if (gdocsToggle && widget.contains(gdocsToggle)) {
+				handleGdocsToggle(gdocsToggle);
+				return;
+			}
+			const copyBtn = target.closest<HTMLButtonElement>('.cff-copy-btn');
+			if (copyBtn && widget.contains(copyBtn)) {
+				handleCopyAddress(copyBtn);
+				return;
+			}
 			const card = target.closest<HTMLButtonElement>('.cff-card');
 			if (card && widget.contains(card)) {
 				handleCardClick(card);
@@ -882,6 +1133,277 @@ const STALE_HOURS = 36;
 
 	.cff-card-label {
 		flex: 1;
+	}
+
+	/* Inline icon defaults */
+	.cff-icon {
+		flex-shrink: 0;
+		display: inline-block;
+		vertical-align: -2px;
+	}
+
+	/* Step 4 — submission cards (one per bureau, equal height via stretch) */
+	.cff-submit-grid {
+		display: grid;
+		grid-template-columns: repeat(3, 1fr);
+		gap: 12px;
+		align-items: stretch;
+	}
+
+	@media (max-width: 640px) {
+		.cff-submit-grid {
+			grid-template-columns: 1fr;
+		}
+	}
+
+	.cff-submit-card {
+		display: flex;
+		flex-direction: column;
+		gap: 8px;
+		padding: 16px;
+		border: 0.5px solid var(--hairline);
+		border-radius: 8px;
+		background: var(--bg);
+	}
+
+	.cff-submit-bureau {
+		font-family: var(--sans);
+		font-size: 15px;
+		font-weight: 500;
+		color: var(--ink);
+	}
+
+	.cff-submit-tag {
+		display: inline-flex;
+		align-items: center;
+		gap: 5px;
+		font-family: var(--sans);
+		font-size: 11px;
+		font-weight: 500;
+		color: var(--muted);
+		text-transform: uppercase;
+		letter-spacing: 0.08em;
+	}
+
+	.cff-submit-desc {
+		font-size: 13px;
+		line-height: 1.5;
+		color: var(--body);
+		margin: 4px 0 0;
+	}
+
+	.cff-submit-action {
+		display: inline-flex;
+		align-items: center;
+		gap: 6px;
+		align-self: flex-start;
+		margin-top: 4px;
+		padding: 6px 10px;
+		font-family: var(--sans);
+		font-size: 12px;
+		color: var(--ink);
+		text-decoration: none;
+		background: transparent;
+		border: 0.5px solid var(--hairline);
+		border-radius: 4px;
+		transition: border-color 120ms ease, color 120ms ease;
+	}
+
+	.cff-submit-action:hover {
+		border-color: var(--accent);
+	}
+
+	.cff-submit-action:focus-visible {
+		outline: 2px solid var(--accent);
+		outline-offset: 2px;
+	}
+
+	.cff-submit-note {
+		font-size: 11px;
+		line-height: 1.5;
+		color: var(--muted);
+		margin: 2px 0 0;
+	}
+
+	.cff-submit-note strong {
+		font-weight: 500;
+	}
+
+	.cff-submit-placeholder {
+		font-size: 12px;
+		color: var(--muted);
+		font-style: italic;
+		margin: 4px 0 0;
+	}
+
+	/* TransUnion options: Word + Markdown share a row; Google Docs on its own row */
+	.cff-tu-actions {
+		display: flex;
+		flex-direction: column;
+		align-items: flex-start;
+		gap: 6px;
+		margin-top: 4px;
+	}
+
+	.cff-tu-downloads-row {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 6px;
+	}
+
+	.cff-tu-chevron-wrap {
+		display: inline-flex;
+		color: var(--muted);
+		transition: transform 200ms ease;
+		margin-left: 4px;
+	}
+
+	.cff-tu-gdocs-toggle[aria-expanded='true'] .cff-tu-chevron-wrap {
+		transform: rotate(180deg);
+	}
+
+	/* Expanded panel — gated by :not([hidden]) so the HTML hidden attribute can hide
+	   it via the user-agent's display: none without our `display: flex` overriding. */
+	.cff-tu-gdocs-panel {
+		flex-direction: column;
+		gap: 10px;
+		margin-top: 2px;
+		padding: 12px;
+		background: rgba(217, 144, 0, 0.06);
+		border: 0.5px solid rgba(217, 144, 0, 0.25);
+		border-radius: 6px;
+		width: 100%;
+	}
+
+	.cff-tu-gdocs-panel:not([hidden]) {
+		display: flex;
+	}
+
+	.cff-tu-warning {
+		display: flex;
+		align-items: flex-start;
+		gap: 8px;
+		font-size: 12px;
+		line-height: 1.45;
+		color: #8a5a00;
+	}
+
+	.cff-tu-warning-icon {
+		flex-shrink: 0;
+		color: #d99000;
+		padding-top: 1px;
+	}
+
+	.cff-tu-gdocs-placeholder {
+		margin: 0;
+		font-size: 11px;
+		color: var(--muted);
+		font-style: italic;
+	}
+
+	.cff-tu-gdocs-placeholder code {
+		font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
+		font-size: 10.5px;
+		background: rgba(26, 26, 26, 0.05);
+		padding: 1px 4px;
+		border-radius: 2px;
+	}
+
+	/* Step 5 — address card grid */
+	.cff-address-grid {
+		display: grid;
+		grid-template-columns: repeat(3, 1fr);
+		gap: 12px;
+		margin-bottom: 20px;
+	}
+
+	@media (max-width: 640px) {
+		.cff-address-grid {
+			grid-template-columns: 1fr;
+		}
+	}
+
+	.cff-address-card {
+		display: flex;
+		flex-direction: column;
+		gap: 10px;
+		padding: 16px;
+		border: 0.5px solid var(--hairline);
+		border-radius: 8px;
+		background: var(--bg);
+	}
+
+	.cff-address-bureau {
+		font-family: var(--sans);
+		font-size: 14px;
+		font-weight: 500;
+		color: var(--ink);
+	}
+
+	.cff-address-lines {
+		font-size: 13px;
+		line-height: 1.6;
+		color: var(--body);
+		flex: 1;
+	}
+
+	.cff-copy-btn {
+		display: inline-flex;
+		align-items: center;
+		gap: 6px;
+		align-self: flex-start;
+		padding: 6px 10px;
+		font-family: var(--sans);
+		font-size: 12px;
+		color: var(--ink);
+		background: transparent;
+		border: 0.5px solid var(--hairline);
+		border-radius: 4px;
+		cursor: pointer;
+		transition: border-color 120ms ease, color 120ms ease, background-color 120ms ease;
+	}
+
+	.cff-copy-btn:hover:not([disabled]) {
+		border-color: var(--accent);
+	}
+
+	.cff-copy-btn:focus-visible {
+		outline: 2px solid var(--accent);
+		outline-offset: 2px;
+	}
+
+	.cff-copy-btn-success {
+		color: #2e7d32;
+		border-color: #4caf50;
+		background: rgba(76, 175, 80, 0.08);
+		cursor: default;
+	}
+
+	.cff-copy-btn-label {
+		line-height: 1;
+	}
+
+	/* Step 5 — mail guidance note */
+	.cff-mail-note {
+		display: flex;
+		gap: 10px;
+		padding: 14px 16px;
+		background: rgba(26, 26, 26, 0.03);
+		border-radius: 6px;
+		font-size: 13px;
+		line-height: 1.55;
+		color: var(--body);
+	}
+
+	.cff-mail-note-icon {
+		flex-shrink: 0;
+		color: var(--muted);
+		padding-top: 1px;
+	}
+
+	.cff-mail-note strong {
+		font-weight: 500;
+		color: var(--ink);
 	}
 
 	/* Status banner — always present in Step 2; theme changes with state */

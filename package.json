@@ -10,9 +10,13 @@
     "build": "astro build",
     "preview": "astro preview",
     "astro": "astro",
-    "sync-monitor-data": "node scripts/sync-monitor-data.mjs"
+    "sync-monitor-data": "node scripts/sync-monitor-data.mjs",
+    "generate-tu-template": "node scripts/generate-transunion-template.mjs"
   },
   "dependencies": {
     "astro": "^6.3.3"
+  },
+  "devDependencies": {
+    "docx": "^9.0.0"
   }
 }
