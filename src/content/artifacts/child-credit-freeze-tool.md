@@ -45,4 +45,4 @@ Real cases: [DOJ, 2019](https://www.justice.gov/usao-cdca/pr/san-fernando-valley
 - Each bureau is its own project. Different forms, different documents, different addresses.
 - Most of it is still mail-in. Photocopies, envelopes, stamps. Experian lets you upload; the others don't.
 
-It's on the bureaus to do better but until then, I built this tool to streamline what we can.
+It's on the bureaus to do better but until then, I built this interactive tool to streamline what we can.

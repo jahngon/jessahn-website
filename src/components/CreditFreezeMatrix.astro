@@ -1,20 +1,30 @@
 ---
-// Renders the bureau-by-category requirements matrix.
-// Fetches data at page load from the monitor repo's state.public.json on raw.githubusercontent.com.
-// Updates automatically — no website redeploy needed when requirements change.
-const STATE_URL =
-	'https://raw.githubusercontent.com/jahngon/child-credit-freeze-monitor/main/data/state.public.json';
+// Child Credit Freeze Tool — interactive widget.
+//
+// State data flow: the monitor repo updates its own state.public.json daily;
+// `npm run sync-monitor-data` in this repo pulls the latest copy into
+// public/widget/state.public.json. The widget reads only from same-origin.
+//
+// Scope through Checkpoint 2: warning + Step 1 matrix + Step 2 picker with
+// reactive matrix highlighting. No summary, banner, or age gate yet.
+const STATE_URL = '/widget/state.public.json';
+const STALE_HOURS = 36;
 ---
 
-<section class="freeze-matrix" data-state-url={STATE_URL} aria-label="Credit bureau document requirements">
-	<div class="freeze-matrix-loading">Loading the latest requirements…</div>
+<section
+	class="cff"
+	data-state-url={STATE_URL}
+	data-stale-hours={STALE_HOURS}
+	aria-label="Child credit freeze tool"
+>
+	<div class="cff-loading">Loading current requirements…</div>
 </section>
 
 <script>
 	const FRIENDLY_LABELS: Record<string, string> = {
 		birth_child: "Child's birth certificate",
 		ssn_child: "Child's Social Security card",
-		id_child: "Child's government-issued ID",
+		id_child: "Child's gov-issued ID",
 		id_parent: "Driver's license or other gov-issued ID",
 		ssn_parent: "Parent's Social Security card",
 		birth_parent: "Parent's birth certificate",
@@ -24,20 +34,33 @@ const STATE_URL =
 		foster: 'Foster care certification',
 	};
 
-	const CATEGORIES: { key: 'parentId' | 'authority' | 'address' | 'childId'; label: string }[] = [
-		{ key: 'parentId', label: 'Parent identity' },
+	type CategoryKey = 'authority' | 'parentId' | 'address' | 'childId';
+	type BureauKey = 'equifax' | 'experian' | 'transunion';
+
+	const CATEGORIES: { key: CategoryKey; label: string }[] = [
 		{ key: 'authority', label: 'Authority' },
+		{ key: 'parentId', label: 'Parent identity' },
 		{ key: 'address', label: 'Address' },
 		{ key: 'childId', label: 'Child identity' },
 	];
 
-	const BUREAUS: { key: 'equifax' | 'experian' | 'transunion'; name: string }[] = [
+	const BUREAUS: { key: BureauKey; name: string }[] = [
 		{ key: 'equifax', name: 'Equifax' },
 		{ key: 'experian', name: 'Experian' },
 		{ key: 'transunion', name: 'TransUnion' },
 	];
 
-	const STALE_HOURS = 48;
+	const PICKER_SECTIONS: { title: string; docIds: string[] }[] = [
+		{ title: 'About the child', docIds: ['birth_child', 'ssn_child', 'id_child'] },
+		{
+			title: 'About you (the parent or guardian)',
+			docIds: ['id_parent', 'ssn_parent', 'birth_parent', 'utility'],
+		},
+		{
+			title: 'Other authority documents (if not the biological parent)',
+			docIds: ['court', 'poa', 'foster'],
+		},
+	];
 
 	type RawCategory = { logic: string; options: string[]; notes?: string };
 	type RawDocument = { id: string; label: string; description?: string };
@@ -49,19 +72,18 @@ const STATE_URL =
 	};
 	type RawState = { lastChecked: string; lastChanged: string; bureaus: RawBureau[] };
 
-	function formatDate(iso: string): string {
-		const d = new Date(iso);
-		return d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
-	}
+	/** Selected document IDs. Lives only in memory; resets on page reload. */
+	const selected = new Set<string>();
+	let state: RawState | null = null;
 
-	function isStale(iso: string): boolean {
-		const hours = (Date.now() - new Date(iso).getTime()) / (1000 * 60 * 60);
-		return hours > STALE_HOURS;
-	}
+	type AgeBand = 'under_16' | '16_or_17';
+	let ageBand: AgeBand = 'under_16';
 
-	function friendlyLabel(id: string, fallback?: string): string {
-		return FRIENDLY_LABELS[id] || fallback || id;
-	}
+	const SELF_REQUEST_URLS: Record<BureauKey, string> = {
+		equifax: 'https://www.equifax.com/personal/credit-report-services/credit-freeze/',
+		experian: 'https://www.experian.com/freeze/center.html',
+		transunion: 'https://www.transunion.com/credit-freeze',
+	};
 
 	function escapeHtml(s: string): string {
 		return s
@@ -72,135 +94,626 @@ const STATE_URL =
 			.replace(/'/g, '&#39;');
 	}
 
-	function renderCell(catKey: string, bureau: RawBureau | undefined): string {
-		if (!bureau) return '<td class="cell-empty">—</td>';
-		const cat = bureau.categories[catKey];
-		if (!cat) return '<td class="cell-empty">—</td>';
-
-		if (cat.logic === 'na' || cat.options.length === 0) {
-			return '<td class="cell-na">Not required</td>';
-		}
-
-		const docMap = new Map(bureau.documents.map((d) => [d.id, d]));
-		const labels = cat.options.map((id) => friendlyLabel(id, docMap.get(id)?.label));
-		const logicLabel = cat.logic === 'or' ? 'Any one of' : cat.logic === 'and' ? 'All of' : cat.logic;
-		const items = labels.map((l) => `<li>${escapeHtml(l)}</li>`).join('');
-		return `<td><span class="cell-logic">${escapeHtml(logicLabel)}</span><ul class="cell-docs">${items}</ul></td>`;
+	function formatDate(iso: string): string {
+		return new Date(iso).toLocaleDateString('en-US', {
+			month: 'long',
+			day: 'numeric',
+			year: 'numeric',
+		});
 	}
 
-	async function loadMatrix(): Promise<void> {
-		const widget = document.querySelector<HTMLElement>('.freeze-matrix');
+	function isStale(iso: string, staleHours: number): boolean {
+		const hours = (Date.now() - new Date(iso).getTime()) / (1000 * 60 * 60);
+		return hours > staleHours;
+	}
+
+	function friendlyLabel(id: string, fallback?: string): string {
+		return FRIENDLY_LABELS[id] || fallback || id;
+	}
+
+	function validateState(data: unknown): string | null {
+		if (!data || typeof data !== 'object') return 'not an object';
+		const d = data as Partial<RawState>;
+		if (typeof d.lastChecked !== 'string') return 'missing lastChecked';
+		if (!Array.isArray(d.bureaus)) return 'bureaus is not an array';
+		for (const b of d.bureaus) {
+			if (!b.bureau || typeof b.bureau !== 'string') return 'bureau name missing';
+			if (!Array.isArray(b.documents)) return `${b.bureau}: documents not array`;
+			if (!b.categories || typeof b.categories !== 'object') {
+				return `${b.bureau}: categories missing`;
+			}
+			for (const cat of ['authority', 'parentId', 'address', 'childId'] as const) {
+				const c = b.categories[cat];
+				if (!c || !Array.isArray(c.options) || typeof c.logic !== 'string') {
+					return `${b.bureau}.categories.${cat}: shape invalid`;
+				}
+			}
+		}
+		return null;
+	}
+
+	function isCategorySatisfied(cat: RawCategory): boolean {
+		if (cat.logic === 'na' || cat.options.length === 0) return true;
+		if (cat.logic === 'or') return cat.options.some((id) => selected.has(id));
+		if (cat.logic === 'and') return cat.options.every((id) => selected.has(id));
+		return false;
+	}
+
+	function renderCell(bureau: RawBureau, catKey: CategoryKey): string {
+		const cat = bureau.categories[catKey];
+		if (!cat) return '<td class="cff-cell cff-cell-empty">—</td>';
+
+		if (cat.logic === 'na' || cat.options.length === 0) {
+			return '<td class="cff-cell cff-cell-na">Not required</td>';
+		}
+
+		const satisfied = isCategorySatisfied(cat);
+		const docMap = new Map(bureau.documents.map((d) => [d.id, d]));
+		const logicLabel =
+			cat.logic === 'or' ? 'Any one of' : cat.logic === 'and' ? 'All of' : cat.logic;
+
+		const items = cat.options
+			.map((id) => {
+				const label = friendlyLabel(id, docMap.get(id)?.label);
+				const isSelected = selected.has(id);
+				return `<li class="cff-cell-doc${isSelected ? ' cff-cell-doc-selected' : ''}">${
+					isSelected ? '<span class="cff-cell-check" aria-hidden="true">✓</span> ' : ''
+				}${escapeHtml(label)}</li>`;
+			})
+			.join('');
+
+		return `<td class="cff-cell${satisfied ? ' cff-cell-satisfied' : ''}"><div class="cff-cell-logic">${escapeHtml(logicLabel)}</div><ul class="cff-cell-docs">${items}</ul></td>`;
+	}
+
+	function renderMatrix(): string {
+		if (!state) return '';
+		const bureausByKey = new Map(state.bureaus.map((b) => [b.bureau, b]));
+		let html = '';
+		html += '<div class="cff-matrix-scroll" id="cff-matrix-scroll">';
+		html += '<table class="cff-matrix" aria-label="Document requirements by bureau">';
+		html += '<colgroup><col class="cff-col-bureau" />';
+		for (let i = 0; i < CATEGORIES.length; i++) {
+			html += '<col class="cff-col-cat" />';
+		}
+		html += '</colgroup>';
+		html += '<thead><tr><th scope="col"></th>';
+		for (const c of CATEGORIES) {
+			html += `<th scope="col">${escapeHtml(c.label)}</th>`;
+		}
+		html += '</tr></thead><tbody>';
+		for (const b of BUREAUS) {
+			const bureau = bureausByKey.get(b.key);
+			if (!bureau) continue;
+			html += `<tr><th scope="row">${escapeHtml(b.name)}</th>`;
+			for (const c of CATEGORIES) {
+				html += renderCell(bureau, c.key);
+			}
+			html += '</tr>';
+		}
+		html += '</tbody></table></div>';
+		return html;
+	}
+
+	function renderPicker(): string {
+		let html = '';
+		html += '<div class="cff-step">';
+		html += '<header class="cff-step-header">';
+		html += '<h2 class="cff-step-title">Step 2: Select your documents</h2>';
+		html += '</header>';
+		html +=
+			'<p class="cff-step-hint">Click each document below to add it. The matrix above updates live.</p>';
+
+		// Status banner — always present, content depends on whether all bureaus' requirements are satisfied.
+		html += '<div id="cff-banner-slot">' + renderBanner() + '</div>';
+
+		for (const section of PICKER_SECTIONS) {
+			html += '<div class="cff-picker-section">';
+			html += `<h3 class="cff-picker-eyebrow">${escapeHtml(section.title)}</h3>`;
+			html += '<div class="cff-card-grid">';
+			for (const id of section.docIds) {
+				const label = friendlyLabel(id);
+				const isSelected = selected.has(id);
+				html += `<button type="button" class="cff-card${isSelected ? ' cff-card-selected' : ''}" data-doc-id="${escapeHtml(id)}" aria-pressed="${isSelected}">`;
+				html += '<span class="cff-card-check" aria-hidden="true"></span>';
+				html += `<span class="cff-card-label">${escapeHtml(label)}</span>`;
+				html += '</button>';
+			}
+			html += '</div></div>';
+		}
+
+		html += '</div>';
+		return html;
+	}
+
+	function renderStep1(): string {
+		if (!state) return '';
+		const stale = isStale(state.lastChecked, getStaleHours());
+
+		let html = '';
+		html += '<div class="cff-step">';
+		html += '<header class="cff-step-header">';
+		html += '<h2 class="cff-step-title">Step 1: Know what each bureau requires</h2>';
+		html += `<span class="cff-status ${stale ? 'cff-status-stale' : 'cff-status-fresh'}">`;
+		html += '<span class="cff-status-dot" aria-hidden="true"></span>';
+		html += `Last checked ${escapeHtml(formatDate(state.lastChecked))}`;
+		if (stale) {
+			html += ' <span class="cff-status-warning">(may be out of date)</span>';
+		}
+		html += '</span></header>';
+		html +=
+			'<p class="cff-step-hint">Each cell lists the accepted documents. Cells will turn green as your Step 2 selections satisfy them.</p>';
+		html += '<div id="cff-matrix-container">';
+		html += renderMatrix();
+		html += '</div>';
+		html += '</div>';
+		return html;
+	}
+
+	function allRequirementsMet(): boolean {
+		if (!state) return false;
+		const cats: CategoryKey[] = ['authority', 'parentId', 'address', 'childId'];
+		for (const bureau of state.bureaus) {
+			for (const cat of cats) {
+				if (!isCategorySatisfied(bureau.categories[cat])) return false;
+			}
+		}
+		return true;
+	}
+
+	/** Bureaus whose option list (across any category) includes this docId. */
+	function bureausForDoc(docId: string): { key: string; name: string }[] {
+		if (!state) return [];
+		const cats: CategoryKey[] = ['authority', 'parentId', 'address', 'childId'];
+		const result: { key: string; name: string }[] = [];
+		for (const bureau of state.bureaus) {
+			const found = cats.some((c) => bureau.categories[c]?.options.includes(docId));
+			if (found) {
+				const display = BUREAUS.find((b) => b.key === bureau.bureau);
+				result.push({ key: bureau.bureau, name: display?.name || bureau.bureau });
+			}
+		}
+		return result;
+	}
+
+	function renderBanner(): string {
+		if (!state) return '';
+		const met = allRequirementsMet();
+		if (met) {
+			return (
+				'<div class="cff-banner cff-banner-met" role="status">' +
+				'<svg class="cff-banner-icon" viewBox="0 0 20 20" width="20" height="20" aria-hidden="true">' +
+				'<circle cx="10" cy="10" r="9" fill="#4caf50"></circle>' +
+				'<path d="M5.5 10.2 L8.7 13.4 L14.5 6.8" stroke="#fff" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"></path>' +
+				'</svg>' +
+				'<span class="cff-banner-text"><strong>All requirements met.</strong> See your mailing summary below.</span>' +
+				'</div>'
+			);
+		}
+		return (
+			'<div class="cff-banner cff-banner-pending" role="status">' +
+			'<svg class="cff-banner-icon" viewBox="0 0 20 20" width="20" height="20" aria-hidden="true">' +
+			'<circle cx="10" cy="10" r="8" fill="none" stroke="#9aa0a6" stroke-width="1.5"></circle>' +
+			'</svg>' +
+			'<span class="cff-banner-text">Requirements not yet met.</span>' +
+			'</div>'
+		);
+	}
+
+	function renderSummary(): string {
+		if (!state) return '';
+
+		// Walk selected in a stable order matching the picker layout.
+		const orderedIds: string[] = [];
+		for (const section of PICKER_SECTIONS) {
+			for (const id of section.docIds) {
+				if (selected.has(id)) orderedIds.push(id);
+			}
+		}
+		for (const id of selected) {
+			if (!orderedIds.includes(id)) orderedIds.push(id);
+		}
+
+		const rows = orderedIds
+			.map((id) => {
+				const bureaus = bureausForDoc(id);
+				if (bureaus.length === 0) return null;
+				return {
+					label: friendlyLabel(id),
+					sendTo: bureaus.map((b) => b.name).join(', '),
+					copies: bureaus.length,
+				};
+			})
+			.filter((r): r is { label: string; sendTo: string; copies: number } => r !== null);
+
+		const isEmpty = rows.length === 0;
+
+		let html = '';
+		html += '<div class="cff-step">';
+		html += '<header class="cff-step-header">';
+		html += '<h2 class="cff-step-title">Step 3: What to make copies of and mail</h2>';
+		html += '</header>';
+
+		if (isEmpty) {
+			html +=
+				'<p class="cff-step-hint">Select your documents above to see what to copy and which bureau each one goes to.</p>';
+		} else {
+			html +=
+				'<p class="cff-step-hint">You should now have a clear picture of what to photocopy. Below shows which documents go in each bureau’s envelope.</p>';
+			html += '<div class="cff-summary-scroll"><table class="cff-summary" aria-label="Documents to copy and mail">';
+			html += '<thead><tr>';
+			html += '<th scope="col">Document</th>';
+			html += '<th scope="col">Send to</th>';
+			html += '<th scope="col" class="cff-summary-num">Copies</th>';
+			html += '</tr></thead><tbody>';
+			for (const row of rows) {
+				html += `<tr><td>${escapeHtml(row.label)}</td><td>${escapeHtml(row.sendTo)}</td><td class="cff-summary-num">${row.copies}</td></tr>`;
+			}
+			html += '</tbody></table></div>';
+			html +=
+				'<div class="cff-warning"><strong>Always send copies, never originals.</strong> Bureaus do not return mailed documents.</div>';
+		}
+
+		html += '</div>';
+		return html;
+	}
+
+	function renderAgeGate(): string {
+		const under16Selected = ageBand === 'under_16';
+		const teenSelected = ageBand === '16_or_17';
+		return (
+			'<div class="cff-age-gate">' +
+			'<label class="cff-age-label" for="cff-age-select"><span class="cff-age-label-text">Child\'s age</span>' +
+			'<select class="cff-age-select" id="cff-age-select">' +
+			`<option value="under_16"${under16Selected ? ' selected' : ''}>Under 16</option>` +
+			`<option value="16_or_17"${teenSelected ? ' selected' : ''}>16 or 17</option>` +
+			'</select>' +
+			'</label>' +
+			'</div>'
+		);
+	}
+
+	function renderBlocker(): string {
+		const items = BUREAUS.map(
+			(b) =>
+				`<li><a href="${escapeHtml(SELF_REQUEST_URLS[b.key])}" target="_blank" rel="noopener">${escapeHtml(b.name)}'s credit freeze page</a></li>`
+		).join('');
+		return (
+			'<div class="cff-blocker">' +
+			'<h2 class="cff-blocker-title">This tool is for children under 16</h2>' +
+			'<p>At 16 or older, the freeze must be requested by the child directly — not by a parent. Each bureau has its own self-request page:</p>' +
+			`<ul class="cff-blocker-links">${items}</ul>` +
+			'</div>'
+		);
+	}
+
+	function renderBody(): string {
+		if (ageBand === '16_or_17') {
+			return renderBlocker();
+		}
+		let html = '';
+		html += renderStep1();
+		html += renderPicker(); // banner is rendered inside Step 2
+		html += '<div id="cff-step3-slot">' + renderSummary() + '</div>';
+		return html;
+	}
+
+	function renderAll(): string {
+		let html = '';
+		html += renderAgeGate();
+		html += '<div id="cff-body">' + renderBody() + '</div>';
+		return html;
+	}
+
+	function renderError(message: string): string {
+		return `<div class="cff-error"><strong>Couldn't load current bureau requirements.</strong> ${escapeHtml(message)} Please refresh the page, or contact the site owner if the problem persists.</div>`;
+	}
+
+	function getStaleHours(): number {
+		const widget = document.querySelector<HTMLElement>('.cff');
+		return Number(widget?.dataset.staleHours) || 36;
+	}
+
+	/** After interaction: re-render matrix, banner, and Step 3 summary. Picker DOM stays stable. */
+	function refreshDynamic(): void {
+		const matrixContainer = document.getElementById('cff-matrix-container');
+		if (matrixContainer) matrixContainer.innerHTML = renderMatrix();
+		const bannerSlot = document.getElementById('cff-banner-slot');
+		if (bannerSlot) bannerSlot.innerHTML = renderBanner();
+		const step3Slot = document.getElementById('cff-step3-slot');
+		if (step3Slot) step3Slot.innerHTML = renderSummary();
+	}
+
+	/** Toggle the doc on the clicked card, update its DOM, and refresh the dynamic regions. */
+	function handleCardClick(card: HTMLButtonElement): void {
+		const id = card.dataset.docId;
+		if (!id) return;
+		if (selected.has(id)) {
+			selected.delete(id);
+			card.setAttribute('aria-pressed', 'false');
+			card.classList.remove('cff-card-selected');
+		} else {
+			selected.add(id);
+			card.setAttribute('aria-pressed', 'true');
+			card.classList.add('cff-card-selected');
+		}
+		refreshDynamic();
+	}
+
+	function handleAgeChange(value: string): void {
+		ageBand = value === '16_or_17' ? '16_or_17' : 'under_16';
+		const body = document.getElementById('cff-body');
+		if (body) body.innerHTML = renderBody();
+	}
+
+	function wireEvents(widget: HTMLElement): void {
+		widget.addEventListener('click', (e) => {
+			const target = e.target as HTMLElement;
+			const card = target.closest<HTMLButtonElement>('.cff-card');
+			if (card && widget.contains(card)) {
+				handleCardClick(card);
+			}
+		});
+		widget.addEventListener('change', (e) => {
+			const target = e.target as HTMLElement;
+			if (target instanceof HTMLSelectElement && target.id === 'cff-age-select') {
+				handleAgeChange(target.value);
+			}
+		});
+	}
+
+	async function init(): Promise<void> {
+		const widget = document.querySelector<HTMLElement>('.cff');
 		if (!widget) return;
 		const url = widget.dataset.stateUrl;
-		if (!url) return;
+		if (!url) {
+			widget.innerHTML = renderError('Widget is misconfigured (no data URL).');
+			return;
+		}
 
 		try {
 			const res = await fetch(url, { cache: 'no-store' });
-			if (!res.ok) throw new Error(`HTTP ${res.status}`);
-			const state = (await res.json()) as RawState;
-
-			const bureausByKey = new Map(state.bureaus.map((b) => [b.bureau, b]));
-			const stale = isStale(state.lastChecked);
-
-			let html = '';
-			html += `<div class="freeze-matrix-status ${stale ? 'stale' : 'fresh'}">`;
-			html += `<span class="status-dot" aria-hidden="true"></span>`;
-			html += `Last checked ${escapeHtml(formatDate(state.lastChecked))}`;
-			if (stale) {
-				html += ` <span class="status-warning">(may be out of date)</span>`;
+			if (!res.ok) {
+				widget.innerHTML = renderError(`Server returned HTTP ${res.status}.`);
+				return;
 			}
-			html += `</div>`;
-
-			html += '<div class="freeze-matrix-scroll"><table class="freeze-matrix-table"><thead><tr><th></th>';
-			for (const b of BUREAUS) {
-				html += `<th scope="col">${escapeHtml(b.name)}</th>`;
+			let parsed: unknown;
+			try {
+				parsed = await res.json();
+			} catch (e) {
+				widget.innerHTML = renderError(
+					`Data file is not valid JSON: ${e instanceof Error ? e.message : String(e)}.`
+				);
+				return;
 			}
-			html += '</tr></thead><tbody>';
-
-			for (const cat of CATEGORIES) {
-				html += `<tr><th scope="row">${escapeHtml(cat.label)}</th>`;
-				for (const b of BUREAUS) {
-					html += renderCell(cat.key, bureausByKey.get(b.key));
-				}
-				html += '</tr>';
+			const err = validateState(parsed);
+			if (err) {
+				widget.innerHTML = renderError(`Data file does not match expected shape: ${err}.`);
+				return;
 			}
-
-			html += '</tbody></table></div>';
-
-			widget.innerHTML = html;
+			state = parsed as RawState;
+			widget.innerHTML = renderAll();
+			wireEvents(widget);
 		} catch (err) {
-			const msg = err instanceof Error ? err.message : String(err);
-			widget.innerHTML = `<div class="freeze-matrix-error">Couldn't load latest requirements (${escapeHtml(msg)}).</div>`;
+			widget.innerHTML = renderError(err instanceof Error ? err.message : String(err));
 		}
 	}
 
-	loadMatrix();
+	init();
 </script>
 
 <style is:global>
-	.freeze-matrix {
-		margin: 56px 0 0;
+	.cff {
+		margin: 64px 0 0;
 		font-family: var(--sans);
+		color: var(--body);
 	}
 
-	.freeze-matrix-loading {
+	/* Age gate dropdown — single line at the very top */
+	.cff-age-gate {
+		margin-bottom: 24px;
+	}
+
+	.cff-age-label {
+		display: inline-flex;
+		align-items: center;
+		gap: 10px;
+		font-family: var(--sans);
+		font-size: 13px;
+		color: var(--muted);
+	}
+
+	.cff-age-label-text {
+		text-transform: uppercase;
+		letter-spacing: 0.1em;
+		font-size: 11px;
+		font-weight: 500;
+	}
+
+	.cff-age-select {
+		font-family: var(--sans);
+		font-size: 13px;
+		color: var(--ink);
+		background: var(--bg);
+		border: 0.5px solid var(--hairline);
+		border-radius: 4px;
+		padding: 6px 28px 6px 10px;
+		cursor: pointer;
+		appearance: none;
+		-webkit-appearance: none;
+		background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2 4 L6 8 L10 4' fill='none' stroke='%231a1a1a' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+		background-repeat: no-repeat;
+		background-position: right 8px center;
+		background-size: 10px;
+	}
+
+	.cff-age-select:focus-visible {
+		outline: 2px solid var(--accent);
+		outline-offset: 2px;
+	}
+
+	/* Blocker panel — shown when child is 16 or 17 */
+	.cff-blocker {
+		padding: 24px;
+		border: 0.5px solid var(--hairline);
+		border-radius: 6px;
+		background: rgba(26, 26, 26, 0.02);
+	}
+
+	.cff-blocker-title {
+		font-family: var(--serif);
+		font-weight: 400;
+		font-size: 22px;
+		line-height: 1.25;
+		letter-spacing: -0.005em;
+		color: var(--ink);
+		margin: 0 0 12px;
+	}
+
+	.cff-blocker p {
+		margin: 0 0 16px;
 		font-size: 14px;
+		line-height: 1.55;
+		color: var(--body);
+	}
+
+	.cff-blocker-links {
+		list-style: none;
+		padding: 0;
+		margin: 0;
+		display: flex;
+		flex-direction: column;
+		gap: 6px;
+	}
+
+	.cff-blocker-links a {
+		color: var(--ink);
+		text-decoration: underline;
+		text-decoration-color: var(--accent);
+		text-underline-offset: 4px;
+		text-decoration-thickness: 2px;
+		font-size: 14px;
+	}
+
+	.cff-blocker-links a:focus-visible {
+		outline: 2px solid var(--accent);
+		outline-offset: 2px;
+		border-radius: 2px;
+	}
+
+	.cff-loading,
+	.cff-error {
+		font-size: 14px;
+		padding: 16px 0;
+	}
+
+	.cff-loading {
 		color: var(--muted);
 		font-style: italic;
 	}
 
-	.freeze-matrix-error {
-		font-size: 14px;
+	.cff-error {
 		color: var(--accent);
 	}
 
-	.freeze-matrix-status {
-		font-size: 13px;
-		color: var(--muted);
-		margin-bottom: 16px;
-		display: flex;
-		align-items: center;
-		gap: 8px;
+	/* "Copies not originals" warning — sits below the Step 3 table */
+	.cff-warning {
+		font-size: 14px;
+		line-height: 1.5;
+		padding: 14px 18px;
+		border-left: 4px solid var(--accent);
+		background: rgba(27, 79, 204, 0.08);
+		margin: 16px 0 0;
+		color: var(--ink);
 	}
 
-	.freeze-matrix-status .status-dot {
+	.cff-warning strong {
+		font-weight: 500;
+	}
+
+	/* Step container */
+	.cff-step {
+		margin-bottom: 28px;
+	}
+
+	.cff-step-header {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: baseline;
+		justify-content: space-between;
+		gap: 12px;
+		margin-bottom: 12px;
+	}
+
+	.cff-step-title {
+		font-family: var(--serif);
+		font-weight: 400;
+		font-size: 22px;
+		line-height: 1.25;
+		letter-spacing: -0.005em;
+		color: var(--ink);
+		margin: 0;
+	}
+
+	/* Last-checked badge */
+	.cff-status {
+		font-size: 13px;
+		color: var(--muted);
+		display: inline-flex;
+		align-items: center;
+		gap: 8px;
+		white-space: nowrap;
+	}
+
+	.cff-status-dot {
 		display: inline-block;
 		width: 8px;
 		height: 8px;
 		border-radius: 50%;
+	}
+
+	.cff-status-fresh .cff-status-dot {
 		background: #4caf50;
 	}
 
-	.freeze-matrix-status.stale .status-dot {
+	.cff-status-stale .cff-status-dot {
 		background: #d99000;
 	}
 
-	.freeze-matrix-status .status-warning {
+	.cff-status-warning {
 		color: #a07000;
 		font-weight: 500;
 	}
 
-	.freeze-matrix-scroll {
+	/* Matrix */
+	.cff-matrix-scroll {
 		overflow-x: auto;
 	}
 
-	.freeze-matrix-table {
+	.cff-matrix {
 		width: 100%;
-		min-width: 560px;
+		min-width: 600px;
 		border-collapse: collapse;
 		font-size: 12px;
-		color: var(--body);
+		table-layout: fixed;
 	}
 
-	.freeze-matrix-table th,
-	.freeze-matrix-table td {
+	.cff-col-bureau {
+		width: 130px;
+	}
+
+	.cff-col-cat {
+		width: auto;
+	}
+
+	.cff-matrix th,
+	.cff-matrix td {
 		padding: 10px 10px;
 		border-top: 0.5px solid var(--hairline);
 		vertical-align: top;
 		text-align: left;
 	}
 
-	.freeze-matrix-table thead th {
+	.cff-matrix thead th {
 		font-weight: 500;
 		color: var(--ink);
 		font-size: 10px;
@@ -209,16 +722,23 @@ const STATE_URL =
 		border-top: none;
 	}
 
-	.freeze-matrix-table th[scope='row'] {
-		font-weight: 500;
+	.cff-matrix th[scope='row'] {
+		font-family: var(--serif);
+		font-weight: 400;
+		font-size: 16px;
 		color: var(--ink);
-		font-size: 12px;
-		width: 22%;
-		min-width: 100px;
+		letter-spacing: -0.005em;
 	}
 
-	.cell-logic {
-		display: block;
+	.cff-cell {
+		transition: background-color 120ms ease;
+	}
+
+	.cff-cell-satisfied {
+		background: rgba(76, 175, 80, 0.1);
+	}
+
+	.cff-cell-logic {
 		font-size: 10px;
 		text-transform: uppercase;
 		letter-spacing: 0.08em;
@@ -226,24 +746,224 @@ const STATE_URL =
 		margin-bottom: 4px;
 	}
 
-	.cell-docs {
+	.cff-cell-docs {
 		list-style: none;
 		padding: 0;
 		margin: 0;
 	}
 
-	.cell-docs li {
+	.cff-cell-doc {
 		margin-bottom: 3px;
 		line-height: 1.35;
 	}
 
-	.cell-docs li:last-child {
+	.cff-cell-doc:last-child {
 		margin-bottom: 0;
 	}
 
-	.cell-na,
-	.cell-empty {
+	.cff-cell-doc-selected {
+		color: #2e7d32;
+		font-weight: 500;
+	}
+
+	.cff-cell-check {
+		color: #2e7d32;
+		font-weight: 500;
+	}
+
+	.cff-cell-na,
+	.cff-cell-empty {
 		color: var(--muted);
 		font-style: italic;
+	}
+
+	/* Picker section — eyebrow in a left gutter, cards on the right */
+	.cff-picker-section {
+		display: grid;
+		grid-template-columns: 140px 1fr;
+		column-gap: 20px;
+		align-items: start;
+		margin-top: 14px;
+	}
+
+	.cff-picker-section:first-child {
+		margin-top: 0;
+	}
+
+	@media (max-width: 720px) {
+		.cff-picker-section {
+			grid-template-columns: 1fr;
+			row-gap: 6px;
+		}
+	}
+
+	.cff-picker-eyebrow {
+		font-family: var(--sans);
+		font-size: 10px;
+		font-weight: 500;
+		color: var(--muted);
+		text-transform: uppercase;
+		letter-spacing: 0.15em;
+		line-height: 1.4;
+		margin: 8px 0 0;
+	}
+
+	@media (max-width: 720px) {
+		.cff-picker-eyebrow {
+			margin: 0;
+		}
+	}
+
+	.cff-card-grid {
+		display: grid;
+		grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+		gap: 6px;
+	}
+
+	/* Document card (toggle button) */
+	.cff-card {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		text-align: left;
+		padding: 8px 10px;
+		font-family: var(--sans);
+		font-size: 12px;
+		line-height: 1.3;
+		color: var(--body);
+		background: transparent;
+		border: 0.5px solid var(--hairline);
+		border-radius: 4px;
+		cursor: pointer;
+		transition: background-color 120ms ease, border-color 120ms ease;
+	}
+
+	.cff-card:hover {
+		border-color: var(--accent);
+	}
+
+	.cff-card:focus-visible {
+		outline: 2px solid var(--accent);
+		outline-offset: 2px;
+	}
+
+	.cff-card-selected {
+		background: rgba(27, 79, 204, 0.08);
+		border-color: var(--accent);
+		color: var(--ink);
+	}
+
+	.cff-card-check {
+		flex-shrink: 0;
+		width: 14px;
+		height: 14px;
+		border: 1px solid var(--hairline);
+		border-radius: 3px;
+		background: var(--bg);
+		position: relative;
+	}
+
+	.cff-card-selected .cff-card-check {
+		background: var(--accent);
+		border-color: var(--accent);
+	}
+
+	.cff-card-selected .cff-card-check::after {
+		content: '';
+		position: absolute;
+		top: 1px;
+		left: 4px;
+		width: 4px;
+		height: 7px;
+		border: solid #fff;
+		border-width: 0 2px 2px 0;
+		transform: rotate(45deg);
+	}
+
+	.cff-card-label {
+		flex: 1;
+	}
+
+	/* Status banner — always present in Step 2; theme changes with state */
+	.cff-banner {
+		display: flex;
+		align-items: center;
+		gap: 12px;
+		padding: 12px 16px;
+		border-left: 4px solid;
+		margin: 0 0 18px;
+		font-size: 14px;
+		line-height: 1.5;
+	}
+
+	.cff-banner-met {
+		border-left-color: #4caf50;
+		background: rgba(76, 175, 80, 0.1);
+		color: var(--ink);
+	}
+
+	.cff-banner-pending {
+		border-left-color: #c0c0c0;
+		background: rgba(26, 26, 26, 0.04);
+		color: var(--muted);
+	}
+
+	.cff-banner-icon {
+		flex-shrink: 0;
+	}
+
+	.cff-banner-text strong {
+		font-weight: 500;
+	}
+
+	/* First picker section sits right under the banner without an extra gap */
+	.cff-banner + .cff-picker-section {
+		margin-top: 0;
+	}
+
+	/* Step 3 — what to mail summary */
+	.cff-step-hint {
+		font-size: 13px;
+		color: var(--muted);
+		margin: 0 0 14px;
+		line-height: 1.5;
+	}
+
+	.cff-summary-scroll {
+		overflow-x: auto;
+	}
+
+	.cff-summary {
+		width: 100%;
+		min-width: 480px;
+		border-collapse: collapse;
+		font-size: 13px;
+	}
+
+	.cff-summary th,
+	.cff-summary td {
+		padding: 10px 10px;
+		border-top: 0.5px solid var(--hairline);
+		vertical-align: top;
+		text-align: left;
+	}
+
+	.cff-summary thead th {
+		font-weight: 500;
+		color: var(--ink);
+		font-size: 10px;
+		text-transform: uppercase;
+		letter-spacing: 0.1em;
+		border-top: none;
+	}
+
+	.cff-summary td:first-child {
+		color: var(--ink);
+		font-weight: 500;
+	}
+
+	.cff-summary-num {
+		text-align: right;
+		font-variant-numeric: tabular-nums;
 	}
 </style>
