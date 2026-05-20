@@ -12,6 +12,7 @@ const STALE_HOURS = 36;
 ---
 
 <section
+	id="tool"
 	class="cff"
 	data-state-url={STATE_URL}
 	data-stale-hours={STALE_HOURS}
@@ -53,11 +54,11 @@ const STALE_HOURS = 36;
 	const PICKER_SECTIONS: { title: string; docIds: string[] }[] = [
 		{ title: 'About the child', docIds: ['birth_child', 'ssn_child', 'id_child'] },
 		{
-			title: 'About you (the parent or guardian)',
+			title: 'Parent / Guardian',
 			docIds: ['id_parent', 'ssn_parent', 'birth_parent', 'utility'],
 		},
 		{
-			title: 'Other authority documents (if not the biological parent)',
+			title: 'Guardianship & Custody',
 			docIds: ['court', 'poa', 'foster'],
 		},
 	];
@@ -306,17 +307,6 @@ const STALE_HOURS = 36;
 		return html;
 	}
 
-	function allRequirementsMet(): boolean {
-		if (!state) return false;
-		const cats: CategoryKey[] = ['authority', 'parentId', 'address', 'childId'];
-		for (const bureau of state.bureaus) {
-			for (const cat of cats) {
-				if (!isCategorySatisfied(bureau.categories[cat])) return false;
-			}
-		}
-		return true;
-	}
-
 	/** Bureaus whose option list (across any category) includes this docId. */
 	function bureausForDoc(docId: string): { key: string; name: string }[] {
 		if (!state) return [];
@@ -332,26 +322,35 @@ const STALE_HOURS = 36;
 		return result;
 	}
 
+	function bureauReady(bureau: RawBureau): boolean {
+		const cats: CategoryKey[] = ['authority', 'parentId', 'address', 'childId'];
+		return cats.every((c) => isCategorySatisfied(bureau.categories[c]));
+	}
+
 	function renderBanner(): string {
 		if (!state) return '';
-		const met = allRequirementsMet();
-		if (met) {
-			return (
-				'<div class="cff-banner cff-banner-met" role="status">' +
-				'<svg class="cff-banner-icon" viewBox="0 0 20 20" width="20" height="20" aria-hidden="true">' +
-				'<circle cx="10" cy="10" r="9" fill="#4caf50"></circle>' +
-				'<path d="M5.5 10.2 L8.7 13.4 L14.5 6.8" stroke="#fff" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"></path>' +
-				'</svg>' +
-				'<span class="cff-banner-text"><strong>All requirements met.</strong> See your mailing summary below.</span>' +
-				'</div>'
-			);
+		const bureausByKey = new Map(state.bureaus.map((b) => [b.bureau, b]));
+		const total = BUREAUS.length;
+		let readyCount = 0;
+		let chips = '';
+		for (const b of BUREAUS) {
+			const bureau = bureausByKey.get(b.key);
+			const ready = bureau ? bureauReady(bureau) : false;
+			if (ready) readyCount++;
+			chips += `<span class="cff-progress-chip${ready ? ' cff-progress-chip-ready' : ''}">`;
+			if (ready) chips += '<span class="cff-progress-chip-check" aria-hidden="true">✓</span>';
+			chips += escapeHtml(b.name);
+			chips += '</span>';
 		}
+		const allReady = readyCount === total;
+		const text = allReady
+			? `<strong>${readyCount} / ${total} bureaus ready.</strong> See your mailing summary below.`
+			: `<strong>${readyCount} / ${total} bureaus ready.</strong>`;
+		const klass = allReady ? 'cff-banner-met' : 'cff-banner-pending';
 		return (
-			'<div class="cff-banner cff-banner-pending" role="status">' +
-			'<svg class="cff-banner-icon" viewBox="0 0 20 20" width="20" height="20" aria-hidden="true">' +
-			'<circle cx="10" cy="10" r="8" fill="none" stroke="#9aa0a6" stroke-width="1.5"></circle>' +
-			'</svg>' +
-			'<span class="cff-banner-text">Requirements not yet met.</span>' +
+			`<div class="cff-banner ${klass}" role="status">` +
+			`<span class="cff-banner-text">${text}</span>` +
+			`<div class="cff-progress" aria-hidden="true">${chips}</div>` +
 			'</div>'
 		);
 	}
@@ -461,7 +460,7 @@ const STALE_HOURS = 36;
 		html += '<div class="cff-submit-bureau">TransUnion</div>';
 		html += `<div class="cff-submit-tag">${ICON_WRITING}<span>Letter</span></div>`;
 		html +=
-			'<p class="cff-submit-desc">Here is a fill-in template that you can use, then print and mail it with your copies.</p>';
+			'<p class="cff-submit-desc">Requires written request. Here is a fill-in template that you can use, print and mail with your copies.</p>';
 
 		html += '<div class="cff-tu-actions">';
 
@@ -549,7 +548,7 @@ const STALE_HOURS = 36;
 		html += '<div class="cff-mail-note">';
 		html += `<span class="cff-mail-note-icon">${ICON_MAILBOX}</span>`;
 		html +=
-			"<span>Because you're mailing sensitive documents, consider sending each request by <strong>certified mail</strong>. Adding a <strong>return receipt</strong> (a few dollars more) gives you back a signed confirmation that the bureau received it — useful if a freeze confirmation never arrives and you need proof you sent it.</span>";
+			"<span>Because you're mailing copies of sensitive documents, consider sending each request by <strong>certified mail</strong> and adding a <strong>return receipt</strong> which gives you back a signed confirmation that the bureau received it. Useful if a freeze confirmation never arrives and you need proof you sent it.</span>";
 		html += '</div>';
 
 		html += '</div>';
@@ -754,7 +753,7 @@ const STALE_HOURS = 36;
 
 <style is:global>
 	.cff {
-		margin: 64px 0 0;
+		margin: 28px 0 0;
 		font-family: var(--sans);
 		color: var(--body);
 	}
@@ -898,7 +897,7 @@ const STALE_HOURS = 36;
 	.cff-step-title {
 		font-family: var(--serif);
 		font-weight: 400;
-		font-size: 22px;
+		font-size: 20px;
 		line-height: 1.25;
 		letter-spacing: -0.005em;
 		color: var(--ink);
@@ -990,11 +989,12 @@ const STALE_HOURS = 36;
 	}
 
 	.cff-cell-logic {
-		font-size: 10px;
+		font-size: 11px;
+		font-weight: 500;
 		text-transform: uppercase;
-		letter-spacing: 0.08em;
-		color: var(--muted);
-		margin-bottom: 4px;
+		letter-spacing: 0.1em;
+		color: var(--ink);
+		margin-bottom: 6px;
 	}
 
 	.cff-cell-docs {
@@ -1082,15 +1082,22 @@ const STALE_HOURS = 36;
 		font-size: 12px;
 		line-height: 1.3;
 		color: var(--body);
-		background: transparent;
+		background: var(--bg);
 		border: 0.5px solid var(--hairline);
 		border-radius: 4px;
 		cursor: pointer;
-		transition: background-color 120ms ease, border-color 120ms ease;
+		transition: background-color 120ms ease, border-color 120ms ease, transform 120ms ease, box-shadow 120ms ease;
 	}
 
 	.cff-card:hover {
 		border-color: var(--accent);
+		transform: translateY(-1px);
+		box-shadow: 0 2px 6px rgba(26, 26, 26, 0.08);
+	}
+
+	.cff-card:active {
+		transform: translateY(0);
+		box-shadow: 0 1px 2px rgba(26, 26, 26, 0.06);
 	}
 
 	.cff-card:focus-visible {
@@ -1409,7 +1416,9 @@ const STALE_HOURS = 36;
 	/* Status banner — always present in Step 2; theme changes with state */
 	.cff-banner {
 		display: flex;
+		flex-wrap: wrap;
 		align-items: center;
+		justify-content: space-between;
 		gap: 12px;
 		padding: 12px 16px;
 		border-left: 4px solid;
@@ -1427,15 +1436,48 @@ const STALE_HOURS = 36;
 	.cff-banner-pending {
 		border-left-color: #c0c0c0;
 		background: rgba(26, 26, 26, 0.04);
-		color: var(--muted);
+		color: var(--body);
 	}
 
-	.cff-banner-icon {
-		flex-shrink: 0;
+	.cff-banner-text {
+		flex: 1;
+		min-width: 180px;
 	}
 
 	.cff-banner-text strong {
 		font-weight: 500;
+	}
+
+	/* Per-bureau progress chips inside the banner */
+	.cff-progress {
+		display: flex;
+		gap: 6px;
+		flex-wrap: wrap;
+	}
+
+	.cff-progress-chip {
+		display: inline-flex;
+		align-items: center;
+		gap: 4px;
+		padding: 3px 8px;
+		font-family: var(--sans);
+		font-size: 11px;
+		font-weight: 500;
+		color: var(--muted);
+		background: var(--bg);
+		border: 0.5px solid var(--hairline);
+		border-radius: 999px;
+		transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease;
+	}
+
+	.cff-progress-chip-ready {
+		color: #2e7d32;
+		background: rgba(76, 175, 80, 0.12);
+		border-color: rgba(76, 175, 80, 0.5);
+	}
+
+	.cff-progress-chip-check {
+		font-weight: 600;
 	}
 
 	/* First picker section sits right under the banner without an extra gap */

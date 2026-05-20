@@ -42,6 +42,11 @@ const formatDate = (d: Date) =>
 		<div class="prose">
 			<Content />
 		</div>
-		{entry.data.widget === 'credit-freeze-matrix' && <CreditFreezeMatrix />}
+		{entry.data.widget === 'credit-freeze-matrix' && (
+			<>
+				<hr class="tool-divider" />
+				<CreditFreezeMatrix />
+			</>
+		)}
 	</article>
 </Layout>

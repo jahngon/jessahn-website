@@ -264,7 +264,8 @@ const ogImage = new URL('/preview.png', Astro.site).toString();
 	}
 
 	.prose h2 {
-		margin: 56px 0 16px;
+		font-size: 26px;
+		margin: 48px 0 14px;
 	}
 
 	.prose h3 {
@@ -298,6 +299,11 @@ const ogImage = new URL('/preview.png', Astro.site).toString();
 		max-width: 800px;
 	}
 
+	/* Sub-page article title sits tighter to its underline + meta block */
+	article h1 {
+		margin-bottom: 24px;
+	}
+
 	/* Title block — sizes to the title's natural width so the underline can span it */
 	.title-block {
 		width: fit-content;
@@ -314,10 +320,25 @@ const ogImage = new URL('/preview.png', Astro.site).toString();
 		font-size: 13px;
 		line-height: 1.55;
 		color: var(--muted);
-		margin: 0 0 32px;
+		margin: 0 0 20px;
 		display: flex;
 		flex-direction: column;
 		gap: 4px;
+	}
+
+	/* Divider between article body and the interactive tool */
+	.tool-divider {
+		border: none;
+		height: 2px;
+		background: var(--accent);
+		margin: 28px 0 0;
+		max-width: 800px;
+	}
+
+	/* Lead-in phrases ("The fix:", "The catch:") in article intros */
+	.prose strong.lead {
+		color: var(--accent);
+		font-weight: 500;
 	}
 
 	.article-meta p {
