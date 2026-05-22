@@ -127,6 +127,13 @@ const STALE_HOURS = 36;
 		transunion: 'https://www.transunion.com/credit-freeze',
 	};
 
+	const BUREAU_INFO_URLS: Record<BureauKey, string> = {
+		equifax:
+			'https://www.equifax.com/personal/education/identity-theft/articles/-/learn/freezing-your-childs-credit-report-faq/',
+		experian: 'https://www.experian.com/help/minor-request.html',
+		transunion: 'https://www.transunion.com/credit-freeze/credit-freeze-faq',
+	};
+
 	function escapeHtml(s: string): string {
 		return s
 			.replace(/&/g, '&amp;')
@@ -242,7 +249,8 @@ const STALE_HOURS = 36;
 		for (const b of BUREAUS) {
 			const bureau = bureausByKey.get(b.key);
 			if (!bureau) continue;
-			html += `<tr><th scope="row">${escapeHtml(b.name)}</th>`;
+			const infoUrl = BUREAU_INFO_URLS[b.key];
+			html += `<tr><th scope="row"><a class="cff-bureau-link" href="${escapeHtml(infoUrl)}" target="_blank" rel="noopener">${escapeHtml(b.name)}${ICON_EXTERNAL}</a></th>`;
 			for (const c of CATEGORIES) {
 				html += renderCell(bureau, c.key);
 			}
@@ -978,6 +986,31 @@ const STALE_HOURS = 36;
 		font-size: 16px;
 		color: var(--ink);
 		letter-spacing: -0.005em;
+	}
+
+	.cff-bureau-link {
+		display: inline-flex;
+		align-items: center;
+		gap: 4px;
+		color: inherit;
+		text-decoration: underline;
+		text-decoration-color: var(--accent);
+		text-decoration-thickness: 1px;
+		text-underline-offset: 3px;
+	}
+
+	.cff-bureau-link:hover {
+		text-decoration-thickness: 2px;
+	}
+
+	.cff-bureau-link:focus-visible {
+		outline: 2px solid var(--accent);
+		outline-offset: 2px;
+		border-radius: 2px;
+	}
+
+	.cff-bureau-link .cff-icon {
+		color: var(--muted);
 	}
 
 	.cff-cell {
