@@ -5,8 +5,8 @@
 // `npm run sync-monitor-data` in this repo pulls the latest copy into
 // public/widget/state.public.json. The widget reads only from same-origin.
 //
-// Scope through Checkpoint 2: warning + Step 1 matrix + Step 2 picker with
-// reactive matrix highlighting. No summary, banner, or age gate yet.
+// Step 1 combines the document picker (cards on top) with the live requirement
+// matrix below it; Steps 2-4 cover what to copy, completing each form, and mailing.
 const STATE_URL = '/widget/state.public.json';
 const STALE_HOURS = 36;
 ---
@@ -260,18 +260,32 @@ const STALE_HOURS = 36;
 		return html;
 	}
 
-	function renderPicker(): string {
+	/**
+	 * Step 1 (combined). Formerly two steps — "know what each bureau requires"
+	 * (the matrix) and "select your documents" (the picker). Now merged so the
+	 * document cards sit on top as the first interactive thing a visitor touches,
+	 * with the live requirement matrix directly below turning green as selections
+	 * satisfy each bureau.
+	 */
+	function renderStep1(): string {
+		if (!state) return '';
+		const stale = isStale(state.lastChecked, getStaleHours());
+
 		let html = '';
 		html += '<div class="cff-step">';
 		html += '<header class="cff-step-header">';
-		html += '<h2 class="cff-step-title">Step 2: Select your documents</h2>';
-		html += '</header>';
+		html += '<h2 class="cff-step-title">Step 1: Select documents to meet bureau requirements</h2>';
+		html += `<span class="cff-status ${stale ? 'cff-status-stale' : 'cff-status-fresh'}">`;
+		html += '<span class="cff-status-dot" aria-hidden="true"></span>';
+		html += `Last checked ${escapeHtml(formatDateTime(state.lastChecked))}`;
+		if (stale) {
+			html += ' <span class="cff-status-warning">(may be out of date)</span>';
+		}
+		html += '</span></header>';
 		html +=
-			'<p class="cff-step-hint">Click each document below to add it. The matrix above updates live.</p>';
+			'<p class="cff-step-hint">Click each document you have. The requirement matrix below updates live, turning green as your selections satisfy each bureau.</p>';
 
-		// Status banner — always present, content depends on whether all bureaus' requirements are satisfied.
-		html += '<div id="cff-banner-slot">' + renderBanner() + '</div>';
-
+		// Picker cards first — the first interactive element on the page.
 		for (const section of PICKER_SECTIONS) {
 			html += '<div class="cff-picker-section">';
 			html += `<h3 class="cff-picker-eyebrow">${escapeHtml(section.title)}</h3>`;
@@ -287,30 +301,12 @@ const STALE_HOURS = 36;
 			html += '</div></div>';
 		}
 
-		html += '</div>';
-		return html;
-	}
-
-	function renderStep1(): string {
-		if (!state) return '';
-		const stale = isStale(state.lastChecked, getStaleHours());
-
-		let html = '';
-		html += '<div class="cff-step">';
-		html += '<header class="cff-step-header">';
-		html += '<h2 class="cff-step-title">Step 1: Know what each bureau requires</h2>';
-		html += `<span class="cff-status ${stale ? 'cff-status-stale' : 'cff-status-fresh'}">`;
-		html += '<span class="cff-status-dot" aria-hidden="true"></span>';
-		html += `Last checked ${escapeHtml(formatDateTime(state.lastChecked))}`;
-		if (stale) {
-			html += ' <span class="cff-status-warning">(may be out of date)</span>';
-		}
-		html += '</span></header>';
-		html +=
-			'<p class="cff-step-hint">Each cell lists the accepted documents. Cells will turn green as your Step 2 selections satisfy them.</p>';
+		// Progress banner + the live matrix, below the cards.
+		html += '<div id="cff-banner-slot">' + renderBanner() + '</div>';
 		html += '<div id="cff-matrix-container">';
 		html += renderMatrix();
 		html += '</div>';
+
 		html += '</div>';
 		return html;
 	}
@@ -394,7 +390,7 @@ const STALE_HOURS = 36;
 		let html = '';
 		html += '<div class="cff-step">';
 		html += '<header class="cff-step-header">';
-		html += '<h2 class="cff-step-title">Step 3: What to make copies of and mail</h2>';
+		html += '<h2 class="cff-step-title">Step 2: What to make copies of and mail</h2>';
 		html += '</header>';
 
 		if (isEmpty) {
@@ -431,7 +427,7 @@ const STALE_HOURS = 36;
 		let html = '';
 		html += '<div class="cff-step">';
 		html += '<header class="cff-step-header">';
-		html += '<h2 class="cff-step-title">Step 4: Complete form for each bureau</h2>';
+		html += '<h2 class="cff-step-title">Step 3: Complete form for each bureau</h2>';
 		html += '</header>';
 		html +=
 			"<p class=\"cff-step-hint\">You'll send a separate request to all three. Each one works a little differently.</p>";
@@ -520,7 +516,7 @@ const STALE_HOURS = 36;
 		let html = '';
 		html += '<div class="cff-step">';
 		html += '<header class="cff-step-header">';
-		html += '<h2 class="cff-step-title">Step 5: Mail each request</h2>';
+		html += '<h2 class="cff-step-title">Step 4: Mail each request</h2>';
 		// Freshness badge inline in the header, mirroring Step 1's visual treatment.
 		html += `<span class="cff-status ${stale ? 'cff-status-stale' : 'cff-status-fresh'}">`;
 		html += '<span class="cff-status-dot" aria-hidden="true"></span>';
@@ -597,8 +593,7 @@ const STALE_HOURS = 36;
 			return renderBlocker();
 		}
 		let html = '';
-		html += renderStep1();
-		html += renderPicker(); // banner is rendered inside Step 2
+		html += renderStep1(); // combined picker cards + live matrix
 		html += '<div id="cff-step3-slot">' + renderSummary() + '</div>';
 		html += renderStep4();
 		html += renderStep5();
@@ -621,7 +616,7 @@ const STALE_HOURS = 36;
 		return Number(widget?.dataset.staleHours) || 36;
 	}
 
-	/** After interaction: re-render matrix, banner, and Step 3 summary. Picker DOM stays stable. */
+	/** After interaction: re-render matrix, banner, and the Step 2 summary. Picker DOM stays stable. */
 	function refreshDynamic(): void {
 		const matrixContainer = document.getElementById('cff-matrix-container');
 		if (matrixContainer) matrixContainer.innerHTML = renderMatrix();
@@ -873,7 +868,7 @@ const STALE_HOURS = 36;
 		color: var(--accent);
 	}
 
-	/* "Copies not originals" warning — sits below the Step 3 table */
+	/* "Copies not originals" warning — sits below the Step 2 table */
 	.cff-warning {
 		font-size: 14px;
 		line-height: 1.5;
@@ -1349,7 +1344,7 @@ const STALE_HOURS = 36;
 		border-radius: 2px;
 	}
 
-	/* Step 5 — address card grid */
+	/* Step 4 — address card grid */
 	.cff-address-grid {
 		display: grid;
 		grid-template-columns: repeat(3, 1fr);
@@ -1423,7 +1418,7 @@ const STALE_HOURS = 36;
 		line-height: 1;
 	}
 
-	/* Step 5 — mail guidance note */
+	/* Step 4 — mail guidance note */
 	.cff-mail-note {
 		display: flex;
 		gap: 10px;
@@ -1446,7 +1441,7 @@ const STALE_HOURS = 36;
 		color: var(--ink);
 	}
 
-	/* Status banner — always present in Step 2; theme changes with state */
+	/* Status banner — always present in Step 1, below the picker cards; theme changes with state */
 	.cff-banner {
 		display: flex;
 		flex-wrap: wrap;
@@ -1455,7 +1450,7 @@ const STALE_HOURS = 36;
 		gap: 12px;
 		padding: 12px 16px;
 		border-left: 4px solid;
-		margin: 0 0 18px;
+		margin: 18px 0;
 		font-size: 14px;
 		line-height: 1.5;
 	}
@@ -1513,12 +1508,7 @@ const STALE_HOURS = 36;
 		font-weight: 600;
 	}
 
-	/* First picker section sits right under the banner without an extra gap */
-	.cff-banner + .cff-picker-section {
-		margin-top: 0;
-	}
-
-	/* Step 3 — what to mail summary */
+	/* Step 2 — what to mail summary */
 	.cff-step-hint {
 		font-size: 13px;
 		color: var(--muted);
