@@ -1,21 +1,21 @@
 ---
 // Child Credit Freeze Tool — interactive widget.
 //
-// State data flow: the monitor repo updates its own state.public.json daily;
-// `npm run sync-monitor-data` in this repo pulls the latest copy into
-// public/widget/state.public.json. The widget reads only from same-origin.
+// State data flow: the monitor repo holds the source-of-truth state.public.json.
+// Daily automation has been retired — to refresh, run the monitor manually and
+// then `npm run sync-monitor-data` in this repo to pull the latest copy into
+// public/widget/state.public.json. The widget reads only from same-origin and
+// shows a fixed "Requirements verified as of <date>" from the state's lastChecked.
 //
 // Step 1 combines the document picker (cards on top) with the live requirement
 // matrix below it; Steps 2-4 cover what to copy, completing each form, and mailing.
 const STATE_URL = '/widget/state.public.json';
-const STALE_HOURS = 36;
 ---
 
 <section
 	id="tool"
 	class="cff"
 	data-state-url={STATE_URL}
-	data-stale-hours={STALE_HOURS}
 	aria-label="Child credit freeze tool"
 >
 	<div class="cff-loading">Loading current requirements…</div>
@@ -151,24 +151,6 @@ const STALE_HOURS = 36;
 		});
 	}
 
-	/** "May 19, 2026 at 10:09 PM" — date + time in visitor's local timezone.
-	 * Used in freshness indicators so changes that land mid-day are visible. */
-	function formatDateTime(iso: string): string {
-		const d = new Date(iso);
-		const date = d.toLocaleDateString('en-US', {
-			month: 'long',
-			day: 'numeric',
-			year: 'numeric',
-		});
-		const time = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
-		return `${date} at ${time}`;
-	}
-
-	function isStale(iso: string, staleHours: number): boolean {
-		const hours = (Date.now() - new Date(iso).getTime()) / (1000 * 60 * 60);
-		return hours > staleHours;
-	}
-
 	function friendlyLabel(id: string, fallback?: string): string {
 		return FRIENDLY_LABELS[id] || fallback || id;
 	}
@@ -269,18 +251,14 @@ const STALE_HOURS = 36;
 	 */
 	function renderStep1(): string {
 		if (!state) return '';
-		const stale = isStale(state.lastChecked, getStaleHours());
 
 		let html = '';
 		html += '<div class="cff-step">';
 		html += '<header class="cff-step-header">';
 		html += '<h2 class="cff-step-title">Step 1: Select documents to meet bureau requirements</h2>';
-		html += `<span class="cff-status ${stale ? 'cff-status-stale' : 'cff-status-fresh'}">`;
+		html += '<span class="cff-status cff-status-fresh">';
 		html += '<span class="cff-status-dot" aria-hidden="true"></span>';
-		html += `Last checked ${escapeHtml(formatDateTime(state.lastChecked))}`;
-		if (stale) {
-			html += ' <span class="cff-status-warning">(may be out of date)</span>';
-		}
+		html += `Requirements verified as of ${escapeHtml(formatDate(state.lastChecked))}`;
 		html += '</span></header>';
 		html +=
 			'<p class="cff-step-hint">Click each document you have. The requirement matrix below updates live, turning green as your selections satisfy each bureau.</p>';
@@ -510,20 +488,16 @@ const STALE_HOURS = 36;
 	function renderStep5(): string {
 		if (!state) return '';
 
-		const stale = isStale(state.lastChecked, getStaleHours());
 		const bureausByKey = new Map(state.bureaus.map((b) => [b.bureau, b]));
 
 		let html = '';
 		html += '<div class="cff-step">';
 		html += '<header class="cff-step-header">';
 		html += '<h2 class="cff-step-title">Step 4: Mail each request</h2>';
-		// Freshness badge inline in the header, mirroring Step 1's visual treatment.
-		html += `<span class="cff-status ${stale ? 'cff-status-stale' : 'cff-status-fresh'}">`;
+		// "As of" date inline in the header, mirroring Step 1's visual treatment.
+		html += '<span class="cff-status cff-status-fresh">';
 		html += '<span class="cff-status-dot" aria-hidden="true"></span>';
-		html += `Last checked ${escapeHtml(formatDateTime(state.lastChecked))}`;
-		if (stale) {
-			html += ' <span class="cff-status-warning">(may be out of date)</span>';
-		}
+		html += `Requirements verified as of ${escapeHtml(formatDate(state.lastChecked))}`;
 		html += '</span>';
 		html += '</header>';
 		html +=
@@ -609,11 +583,6 @@ const STALE_HOURS = 36;
 
 	function renderError(message: string): string {
 		return `<div class="cff-error"><strong>Couldn't load current bureau requirements.</strong> ${escapeHtml(message)} Please refresh the page, or contact the site owner if the problem persists.</div>`;
-	}
-
-	function getStaleHours(): number {
-		const widget = document.querySelector<HTMLElement>('.cff');
-		return Number(widget?.dataset.staleHours) || 36;
 	}
 
 	/** After interaction: re-render matrix, banner, and the Step 2 summary. Picker DOM stays stable. */
@@ -926,15 +895,6 @@ const STALE_HOURS = 36;
 
 	.cff-status-fresh .cff-status-dot {
 		background: #4caf50;
-	}
-
-	.cff-status-stale .cff-status-dot {
-		background: #d99000;
-	}
-
-	.cff-status-warning {
-		color: #a07000;
-		font-weight: 500;
 	}
 
 	/* Matrix */
