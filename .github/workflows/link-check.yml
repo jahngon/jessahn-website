@@ -15,7 +15,10 @@ jobs:
       - name: Run lychee link checker
         uses: lycheeverse/lychee-action@v2
         with:
-          args: --timeout 30 --max-retries 2 --no-progress ./links-to-check.md
+          args: >-
+            --timeout 30 --max-retries 3 --retry-wait-time 5 --no-progress
+            --user-agent "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36"
+            ./links-to-check.md
           fail: true
           output: ./lychee/links-report.md
 
